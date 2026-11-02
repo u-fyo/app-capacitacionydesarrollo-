@@ -1879,22 +1879,38 @@ function fiCuotasFact(p){
   <div class="sub2" style="margin-top:10px">Cada factura generada queda en <b>Facturas del curso</b> (acá abajo) y en Facturación con su mes, para cargarle el N° cuando llegue.</div></div></div>
 
  `}
+/* porcentaje con un decimal si hace falta (60,4%) */
+const pct1=(a,b)=>{if(!b)return '100';const r=Math.round(a/b*1000)/10;return Number.isInteger(r)?String(r):r.toLocaleString('es-AR',{minimumFractionDigits:1,maximumFractionDigits:1})};
+/* parte un monto en las facturas según sus %, y la última absorbe el redondeo para que sumen exacto */
+function partirMonto(m,pcts){const tot=pcts.reduce((a,x)=>a+(+x||0),0)||100,M=Math.round(m);let acc=0;return pcts.map((x,i)=>{if(i===pcts.length-1)return M-acc;const v=Math.round(M*(+x||0)/tot);acc+=v;return v})}
+/* reparte un total entero entre filas según sus pesos, sin perder ni sobrar ningún peso (método del mayor resto) */
+function repartirExacto(total,w){const S=w.reduce((a,x)=>a+x,0),T=Math.round(total);if(!S)return w.map(()=>0);const raw=w.map(x=>T*x/S),fl=raw.map(Math.floor);let rest=T-fl.reduce((a,x)=>a+x,0);
+ raw.map((x,i)=>[x-fl[i],i]).sort((a,b)=>b[0]-a[0]).forEach(([,i])=>{if(rest>0){fl[i]++;rest--}});return fl}
+/* matriz filas × facturas: cada factura suma exacto su parte del total y cada fila queda proporcional a su peso */
+function matFilas(totCols,w){const R=w.map(x=>Math.round(x)),cols=[];for(let k=0;k<totCols.length-1;k++)cols.push(repartirExacto(totCols[k],R));
+ return R.map((m,i)=>{const fila=cols.map(c=>c[i]);fila.push(m-fila.reduce((a,x)=>a+x,0));return fila})}
 function fiImp(p,facs){
  const imp=imputar(p),gr=repartoSoc(p),gast=p.gastos||[],total=p.real||p.ppto||0;
  const unaCuenta=imp.length===1;
+ const fz=factCfg(p),N=fz.cuotas.length,pcts=fz.cuotas.map(c=>+c.pct||0),OR=['1.ª','2.ª','3.ª','4.ª','5.ª','6.ª'];
+ const thC=()=>N>1?fz.cuotas.map((c,k)=>`<th class="r">${OR[k]} factura<div class="sub2" style="font-weight:500">${pcts[k]}%${c.gen?' · ✓ generada':' · pendiente'}</div></th>`).join(''):'';
+ const tdM=v=>N>1?v.map(x=>`<td class="r num">${plata(x)}</td>`).join(''):'';
+ const sumCol=M=>N>1?pcts.map((_x,k)=>`<td class="r num">${plata(M.reduce((a,r)=>a+r[k],0))}</td>`).join(''):'';
+ const MGr=N>1?matFilas(partirMonto(gr.reduce((a,g)=>a+g.monto,0),pcts),gr.map(g=>g.monto)):[];
+ const GS=gruposSoc(imp),MGc=N>1?matFilas(partirMonto(imp.reduce((a,r)=>a+r.monto,0),pcts),GS.map(g=>g.monto)):[],MRc=N>1?GS.map((g,gi)=>matFilas(MGc[gi],repartirExacto(g.monto,g.rows.map(r=>r.monto)))):[],gR=(gi,ri)=>N>1?MRc[gi][ri]:[];
  return `
  ${fiCuotasFact(p)}
  <div class="card"><div class="card-h"><h2>Reparto entre sociedades</h2>
    <div class="n">${plata(total)} en total${p.real?'':' (precio previsto)'}</div></div>
   <div class="card-b flush">
-   ${gr.length&&gr[0].n?`<div class="aviso" style="margin:14px 18px">Pedile al proveedor que facture: <b>${gr.map(g=>`${pct(g.n,g.tot)}% a ${esc(ab(g.soc))}`).join(' · ')}</b>. Sale de las personas involucradas de cada sociedad.</div>`:''}
+   ${gr.length&&gr[0].n?`<div class="aviso" style="margin:14px 18px">Pedile al proveedor que facture: <b>${gr.map(g=>`${pct1(g.n,g.tot)}% a ${esc(ab(g.soc))}`).join(' · ')}</b>.${N>1?` En <b>${N} facturas</b>: ${pcts.map((x,k)=>OR[k]+' '+x+'%').join(' · ')}. Cada factura se reparte con esos mismos porcentajes.`:''} Sale de las personas involucradas de cada sociedad.</div>`:''}
    <div class="scroll"><table>
-   <thead><tr><th>Sociedad</th><th class="r">Personas</th><th class="r">%</th><th class="r">A facturar</th></tr></thead>
-   <tbody>${gr.length?gr.map(g=>`<tr>
-    <td class="nom">${esc(ab(g.soc))}</td><td class="r num">${g.n}</td><td class="r num">${g.tot?pct(g.n,g.tot):100}%</td>
-    <td class="r"><input class="money fi num" type="text" inputmode="numeric" style="width:130px;text-align:right;${p.repOv&&p.repOv[g.soc]!==undefined?'border-color:var(--naranja)':''}" value="${g.monto}" title="Podés editar el monto si cambia" onchange="setRepOv('${p.id}','${js(g.soc)}',this.value)"></td></tr>`).join('')
-   :'<tr><td colspan="4"><div class="vacio">Cargá participantes para calcular el reparto.</div></td></tr>'}</tbody>
-   ${gr.length?`<tfoot><tr><td colspan="3">Total a facturar${p.repOv?' <span class="chip c-pen">editado a mano</span>':''}</td><td class="r num">${plata(gr.reduce((a,g)=>a+g.monto,0))}</td></tr></tfoot>`:''}
+   <thead><tr><th>Sociedad</th><th class="r">Personas</th><th class="r">%</th><th class="r">${N>1?'Total a facturar':'A facturar'}</th>${thC()}</tr></thead>
+   <tbody>${gr.length?gr.map((g,gi)=>`<tr>
+    <td class="nom">${esc(ab(g.soc))}</td><td class="r num">${g.n}</td><td class="r num">${g.tot?pct1(g.n,g.tot):100}%</td>
+    <td class="r"><input class="money fi num" type="text" inputmode="numeric" style="width:130px;text-align:right;${p.repOv&&p.repOv[g.soc]!==undefined?'border-color:var(--naranja)':''}" value="${g.monto}" title="Podés editar el monto si cambia" onchange="setRepOv('${p.id}','${js(g.soc)}',this.value)"></td>${tdM(MGr[gi])}</tr>`).join('')
+   :'<tr><td colspan="${4+(N>1?N:0)}"><div class="vacio">Cargá participantes para calcular el reparto.</div></td></tr>'}</tbody>
+   ${gr.length?`<tfoot><tr><td colspan="3">Total a facturar${p.repOv?' <span class="chip c-pen">editado a mano</span>':''}</td><td class="r num">${plata(gr.reduce((a,g)=>a+g.monto,0))}</td>${sumCol(MGr)}</tr></tfoot>`:''}
   </table></div>
   <div style="padding:14px 18px;border-top:1px solid var(--linea-2);display:flex;gap:8px;flex-wrap:wrap">
    <button class="btn g" onclick="copiarReparto('${p.id}')">Copiar para el proveedor</button>
@@ -1910,12 +1926,12 @@ function fiImp(p,facs){
      <div class="sub2">Todas las personas son de ${esc(ab(imp[0].soc))} · ${esc(imp[0].vn)}: va entera a esta cuenta · <b>${plata(imp[0].monto)}</b></div></div>
      ${imp[0].ov?`<div class="sub2" style="color:var(--naranja);padding:0 18px 12px">Cuenta cambiada · ${esc(imp[0].motivo)} · <a href="#" onclick="ctaGrQuitar('${p.id}','${js((imp[0].keys||[]).join(','))}');return false">volver a la automática</a></div>`:''}`
    :`<div class="scroll"><table>
-   <thead><tr><th>Equipo</th><th>Cuenta (tocá para cambiarla)</th><th class="r">Personas</th><th class="r">%</th><th class="r">Monto</th></tr></thead>
-   <tbody>${gruposSoc(imp).map(g=>`<tr style="background:var(--celeste-xl)"><td colspan="2" class="nom">${esc(ab(g.soc))}</td><td class="r num">${g.n}</td><td class="r num">${g.tot?pct(g.n,g.tot):100}%</td><td class="r num" style="font-weight:700">${plata(g.monto)}</td></tr>`
-    +g.rows.map(r=>`<tr><td class="sub2" style="padding-left:22px">${esc(r.vn)}</td>
+   <thead><tr><th>Equipo</th><th>Cuenta (tocá para cambiarla)</th><th class="r">Personas</th><th class="r">%</th><th class="r">${N>1?'Total':'Monto'}</th>${thC()}</tr></thead>
+   <tbody>${GS.map((g,gi)=>`<tr style="background:var(--celeste-xl)"><td colspan="2" class="nom">${esc(ab(g.soc))}</td><td class="r num">${g.n}</td><td class="r num">${g.tot?pct1(g.n,g.tot):100}%</td><td class="r num" style="font-weight:700">${plata(g.monto)}</td>${tdM(MGc[gi])}</tr>`
+    +g.rows.map((r,ri)=>`<tr><td class="sub2" style="padding-left:22px">${esc(r.vn)}</td>
     <td>${ctaTag(p,r)}${r.ov?`<div class="sub2" style="color:var(--naranja);margin-top:3px">cambiada · ${esc(r.motivo)} · <a href="#" onclick="ctaGrQuitar('${p.id}','${js((r.keys||[]).join(','))}');return false">volver a la automática</a></div>`:''}</td>
-    <td class="r num">${r.n}</td><td class="r num">${r.tot?pct(r.n,r.tot):100}%</td><td class="r num" style="font-weight:600">${plata(r.monto)}</td></tr>`).join('')).join('')}</tbody>
-   <tfoot><tr><td colspan="4">Total imputado</td><td class="r num">${plata(imp.reduce((a,r)=>a+r.monto,0))}</td></tr></tfoot></table></div>`}
+    <td class="r num">${r.n}</td><td class="r num">${r.tot?pct1(r.n,r.tot):100}%</td><td class="r num" style="font-weight:600">${plata(r.monto)}</td>${tdM(gR(gi,ri))}</tr>`).join('')).join('')}</tbody>
+   <tfoot><tr><td colspan="4">Total imputado</td><td class="r num">${plata(imp.reduce((a,r)=>a+r.monto,0))}</td>${sumCol(MGc)}</tr></tfoot></table></div>`}
    ${p.ctaOv?`<div class="aviso w" style="margin:14px 18px"><b>Imputación manual:</b> ${esc(ctaTxt(p.ctaOv.cid))}. Motivo: ${esc(p.ctaOv.motivo)} <span class="sub2">(${fecha(p.ctaOv.fecha)})</span>
     <button class="btn n s" style="margin-left:8px" onclick="ctaOvQuitar('${p.id}')">Volver a la automática</button></div>`:''}
   </div></div>
@@ -3160,11 +3176,18 @@ function verFI(id){
  </table></div></div>`);
 }
 /* ── nueva factura de profe: elegís profe, se agrupa solo por sociedad, editable persona x persona ── */
-let NF={profe:'',mes:'',grupos:{}};
+let NF={profe:'',mes:'',grupos:{},incBajas:false};
 function socDef(soc){return soc==='BIOND'?'Futuros y Opciones.com SA':soc}
-function nfActivos(p,mes){const c=addMes(mes,-1);return DB.idi.filter(x=>x.profe===p&&x.alta<=c+'-31'&&(!x.baja||x.baja>=c+'-01'))}
+/* alumnos de la profe que cursaron en el mes anterior al período; los dados de baja no entran salvo que se pida */
+function nfActivos(p,mes,conBajas){const c=addMes(mes,-1);return DB.idi.filter(x=>x.profe===p&&x.alta<=c+'-31'&&(!x.baja||x.baja>=c+'-01')&&(conBajas||x.est!=='Baja'))}
+function nfBajas(p,mes){return nfActivos(p,mes,true).filter(x=>x.est==='Baja')}
+function nfQuitar(soc,gix,i){const g=NF.grupos[soc];if(!g||!g[i])return;g[i].inc=false;g[i].rm=true;const r=document.getElementById('nfp_'+gix+'_'+i);if(r)r.remove();nfRecuenta(soc,gix);
+ toast('Sacado de esta factura · si dejó de cursar, dalo de baja desde Alumnos')}
+function nfRecuenta(soc,gix){const L=NF.grupos[soc]||[],n=L.filter(x=>x.inc).length;
+ const h=document.getElementById('nfh_'+gix);if(h)h.textContent=ab(soc)+' · '+n+' persona'+(n===1?'':'s');
+ if(!L.some(x=>!x.rm)){const c=document.getElementById('nfc_'+gix);if(c)c.remove()}}
 function nuevaFactIdi(profe){
- NF={profe:profe||'',mes:LG.mesA||HOY.slice(0,7),grupos:{}};
+ NF={profe:profe||'',mes:LG.mesA||HOY.slice(0,7),grupos:{},incBajas:false};
  const profes=[...new Set(DB.idi.filter(x=>x.est==='Activa'||x.baja>=NF.mes+'-01').map(x=>x.profe))].sort();
  modal(cab('Cargar factura','Elegís la profe o la plataforma: aparecen sus alumnos y cargás solo el total')+`<div class="mdl-b"><div class="form">
   <div class="f"><label>Profe o plataforma</label><select id="nf_prof" onchange="nfProfe(this.value)">
@@ -3178,21 +3201,24 @@ function nuevaFactIdi(profe){
 function nfProfe(p){
  NF.profe=p;NF.grupos={};const box=document.getElementById('nf_grupos');
  if(!p){box.innerHTML='<div class="sub2">Elegí la profe para ver a sus alumnos.</div>';return}
- const al=nfActivos(p,NF.mes);
- if(!al.length){box.innerHTML=`<div class="aviso w">No hay alumnos de ${esc(p)} en ${mesTxt(NF.mes)}. Si hubo un alta, dala primero desde la solapa <b>Alumnos</b> (+ Alta).</div>`;return}
+ const al=nfActivos(p,NF.mes,NF.incBajas),bj=nfBajas(p,NF.mes),cm=mesTxt(addMes(NF.mes,-1));
+ const optBajas=bj.length?`<label class="check" style="margin:8px 0;font-size:12.5px"><input type="checkbox" ${NF.incBajas?'checked':''} onchange="NF.incBajas=this.checked;nfProfe(NF.profe)">
+   Incluir ${bj.length} alumno${bj.length===1?'':'s'} dado${bj.length===1?'':'s'} de baja que ${bj.length===1?'cursó':'cursaron'} en ${cm}: <span class="sub2">${bj.map(x=>esc(x.nom)+' (baja '+fecha(x.baja)+')').join(' · ')}</span></label>`:'';
+ if(!al.length){box.innerHTML=`<div class="aviso w">No hay alumnos activos de ${esc(p)} en ${mesTxt(NF.mes)}. Si hubo un alta, dala primero desde la solapa <b>Alumnos</b> (+ Alta).</div>${optBajas}`;return}
  const porSoc={};al.forEach(x=>{const s=socFact(x.soc);(porSoc[s]=porSoc[s]||[]).push(x)});
- box.innerHTML=`<div class="sub2" style="margin:6px 0">Alumnos activos en ${mesTxt(NF.mes)}. Destildá a quien no entre en esta factura. Si hubo un alta o una baja, se hace a mano desde Alumnos.</div>`+
- Object.entries(porSoc).map(([soc,arr])=>{
+ box.innerHTML=`<div class="sub2" style="margin:6px 0">Alumnos activos en ${mesTxt(NF.mes)}. Los dados de baja no aparecen. Con la ✕ sacás a alguien de esta factura (y si dejó de cursar, lo das de baja desde Alumnos).</div>${optBajas}`+
+ Object.entries(porSoc).map(([soc,arr],gix)=>{
   const dest=socDef(soc),prev=DB.fidi.filter(f=>f.profe===p&&f.mes<NF.mes&&f.soc===dest).sort((a,b)=>b.mes.localeCompare(a.mes))[0];
   NF.grupos[soc]=arr.map(x=>({id:x.id,lg:x.lg,nom:x.nom,idioma:x.idioma,inc:true}));
-  return `<div class="card" style="margin-top:12px"><div class="card-h"><h2>${esc(ab(soc))} · ${arr.length} persona${arr.length===1?'':'s'}</h2>${prev?`<div class="n">${mesTxt(prev.mes)} fue ${plata(prev.monto)}</div>`:''}</div>
+  return `<div class="card" id="nfc_${gix}" style="margin-top:12px"><div class="card-h"><h2 id="nfh_${gix}">${esc(ab(soc))} · ${arr.length} persona${arr.length===1?'':'s'}</h2>${prev?`<div class="n">${mesTxt(prev.mes)} fue ${plata(prev.monto)}</div>`:''}</div>
    <div class="card-b"><div class="form">
     <div class="f"><label>Se factura a</label><select class="nf_fa" data-soc="${esc(soc)}">${[...new Set([dest,...SOCS])].map(s=>`<option ${s===dest?'selected':''}>${esc(s)}</option>`).join('')}</select></div>
     <div class="f"><label>Total de la factura</label><input class="money nf_tot" type="text" inputmode="numeric" data-soc="${esc(soc)}" value="${prev?prev.monto:''}" placeholder="$ 0"></div>
     <div class="f"><label>N° de factura</label><input class="nf_nro" data-soc="${esc(soc)}" placeholder="00000-00000000"></div>
     <div class="f"><label>Fecha de factura</label><input type="date" class="nf_fec" data-soc="${esc(soc)}" value="${HOY}"></div></div>
-    <div class="pgrid" style="margin-top:8px">${arr.map((x,i)=>`<label class="check pchk"><input type="checkbox" checked onchange="NF.grupos['${js(soc)}'][${i}].inc=this.checked">
-     <span style="flex:1"><b>${esc(x.nom)}</b><span class="sub2">${esc(x.idioma)}</span></span></label>`).join('')}</div></div></div>`}).join('');
+    <div class="pgrid" style="margin-top:8px">${arr.map((x,i)=>`<label class="check pchk" id="nfp_${gix}_${i}"><input type="checkbox" checked onchange="NF.grupos['${js(soc)}'][${i}].inc=this.checked;nfRecuenta('${js(soc)}',${gix})">
+     <span style="flex:1"><b>${esc(x.nom)}</b><span class="sub2">${esc(x.idioma)}</span></span>
+     <button type="button" class="btn n s" style="padding:1px 8px" title="Sacarlo de esta factura" onclick="event.preventDefault();nfQuitar('${js(soc)}',${gix},${i})">✕</button></label>`).join('')}</div></div></div>`}).join('');
 }
 function crearFactIdi(){
  if(!NF.profe){toast('Elegí la profe');return}
