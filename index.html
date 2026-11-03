@@ -699,6 +699,13 @@ input[type=checkbox]{accent-color:var(--celeste)}
 .sb-btn{background:rgba(255,255,255,.12);border:none;color:#fff;width:26px;height:26px;border-radius:50%;cursor:pointer;font-size:13px}
 .sb-btn:hover{background:rgba(255,255,255,.24)}
 body.min .sb-info,body.min .sb-btn:nth-of-type(2){display:none}
+
+/* ── recordatorio de la nómina ── */
+.nom-rec{display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:#fff;border:2px solid var(--naranja);border-radius:var(--r);padding:14px 18px;margin-bottom:16px}
+.nom-bell{font-size:26px;line-height:1}
+.nom-rec-t{font-weight:800;letter-spacing:-.025em;font-size:15px;color:var(--carbon);margin-bottom:2px}
+.nom-x{border:none;background:transparent;color:var(--gris);font-size:18px;cursor:pointer;width:32px;height:32px;border-radius:50%;line-height:1}
+.nom-x:hover{background:var(--niebla);color:var(--carbon)}
 </style>
 </head>
 <body>
@@ -1081,7 +1088,7 @@ window.addEventListener('popstate',e=>{const st=e.state;if(!st||!st.r)return;
  NAVPOP=true;try{ir(st.r,st.arg||undefined)}finally{NAVPOP=false}
  if(st.y!==undefined)window.scrollTo(0,st.y)});
 function pinta(){const f=V[RUTA]||V.res;try{syncEstadosAct()}catch(e){}
- $('#view').innerHTML=(RUTA!=='nomi'&&typeof nomVence==='function'&&(nomVence()||(DB.nomPend||[]).length)?nomAviso():'')+f(ARG);if(f.after)f.after(ARG);guardar()}
+ $('#view').innerHTML=(RUTA!=='nomi'&&typeof nomVence==='function'&&((nomVence()&&!nomOculto())||(DB.nomPend||[]).length)?nomAviso():'')+f(ARG);if(f.after)f.after(ARG);guardar()}
 function refresh(){pinta()}
 $('#tog').onclick=()=>{document.body.classList.toggle('min');
  try{localStorage.setItem('fyo_nav_min',document.body.classList.contains('min')?'1':'')}catch(e){}};
@@ -1235,6 +1242,27 @@ V.res.after=()=>{
 /* ═════════════ LÍNEAS (Conocé · Crecé · Explorá) Y OBJETIVOS DEL PRESUPUESTO ═════════════ */
 const LINEAS=['Conocé','Crecé','Explorá'];
 const CLIN={'Conocé':'#22A06B','Crecé':'#2F6FDE','Explorá':'#7C5CD6','Becas':'#E09B00','Idiomas':'#E5484D','Sin línea':'#5B6B70'};
+/* link de la encuesta: se completa en la ficha y queda a un clic (ficha, Plan y solapa Participantes) */
+const urlOk=v=>{v=String(v||'').trim();return v&&!/^https?:\/\//i.test(v)?'https://'+v:v};
+function abrirEncuesta(id){const p=acto(id);if(!p||!p.encuesta){toast('Esta capacitación todavía no tiene el link de la encuesta');return}window.open(p.encuesta,'_blank','noopener')}
+function encuestaMsg(p){return `¡Hola! Gracias por participar de ${p.nom}. Nos ayuda mucho tu opinión: completá esta encuesta, te lleva un par de minutos:\n${p.encuesta}\n¡Gracias!`}
+function copiarEncuesta(id,que){const p=acto(id);if(!p)return;
+ const t=que==='mails'?mailsAct(p).mails.join('; '):que==='link'?p.encuesta:encuestaMsg(p);
+ if(!t){toast(que==='mails'?'No hay mails para copiar':'Falta el link');return}
+ copiarTxt(t,que==='mails'?'Mails copiados':que==='link'?'Link copiado':'Mensaje copiado')}
+function encuestaEnviada(id,v){const p=acto(id);if(!p)return;if(v)p.encuestaEnv=HOY;else delete p.encuestaEnv;guardar();volverFicha(id,1);toast(v?'Marcada como enviada':'Marca quitada')}
+function encuestaCard(p){
+ if(p.encuesta){
+  const fin=p.est==='Finalizada',env=p.encuestaEnv;
+  return `<div class="card" style="${fin&&!env?'border-color:var(--naranja)':''}"><div class="card-h"><h2>📋 ${fin&&!env?'Mandá la encuesta de satisfacción':'Encuesta de satisfacción'}</h2><div class="n">${env?'enviada el '+fecha(env):(fin?'terminó: falta mandarla':'se manda cuando termina')}</div></div>
+   <div class="card-b"><div class="sub2" style="margin-bottom:10px;word-break:break-all">${esc(p.encuesta)}</div>
+    <div class="acts" style="margin:0"><button class="btn" onclick="abrirEncuesta('${p.id}')">Abrir encuesta</button>
+     <button class="btn g" onclick="copiarEncuesta('${p.id}','msg')">Copiar mensaje</button>
+     <button class="btn g" onclick="copiarEncuesta('${p.id}','mails')">Copiar mails (${mailsAct(p).mails.length})</button>
+     <button class="btn n" onclick="copiarEncuesta('${p.id}','link')">Copiar link</button>
+     ${env?`<button class="btn n" onclick="encuestaEnviada('${p.id}',false)">Quitar “enviada”</button>`:`<button class="btn n" onclick="encuestaEnviada('${p.id}',true)">✓ Ya la mandé</button>`}</div></div></div>`}
+ if(p.est==='Finalizada')return `<div class="aviso" style="margin-bottom:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap"><span style="font-size:20px">📋</span><div style="flex:1"><b>Terminó la capacitación y no cargaste el link de la encuesta.</b> Cargalo para tenerlo a un clic.</div><button class="btn" onclick="volverFicha('${p.id}',0)">Cargar el link</button></div>`;
+ return ''}
 const linChip=p=>p&&p.linea?`<span class="chip" style="background:${CLIN[p.linea]||'#5B6B70'}22;color:${CLIN[p.linea]||'#5B6B70'};font-weight:700" title="Línea de desarrollo">${esc(p.linea)}</span>`:'';
 /* porcentaje con un decimal (0,4%): así se ve cuando es chico y se actualiza */
 const pctD=(a,b)=>!b?'—':(a/b*100).toLocaleString('es-AR',{minimumFractionDigits:1,maximumFractionDigits:1})+'%';
@@ -1263,10 +1291,10 @@ function detalleDatos(){
  Object.values(S).forEach(c=>c.items.forEach(i=>{
   const r={cid:c.id,cta:c.cta,desc:c.desc,soc:c.soc,ab:c.ab||ab(c.soc),area:c.area||'',t:i.t,nom:i.nom,m:+i.m||0,cerrado:!!i.cerrado,di:!!i.di,id:i.id,linea:'Sin línea',sub:'',tipoL:'Otros'};
   if(i.t==='act'||i.t==='gasto'){const p=DB.plan.find(x=>x.id===i.id);
-   if(p){r.linea=p.linea||'Sin línea';r.sub=r.linea==='Crecé'?(FOCO[p.foco]||'Sin foco'):'';r.prov=p.prov;r.aid=p.id;
+   if(p){r.linea=p.linea||'Sin línea';r.sub=r.linea==='Crecé'?(FOCO[p.foco]||'Sin foco'):'';r.prov=p.prov;r.aid=p.id;r.foco=p.foco||'';{const fx=actFechas(p);r.mes=fx.ini?fx.ini.slice(0,7):'Sin fecha'}
     r.tipoL=i.t==='gasto'?'Gastos asociados':(p.tipo==='Coaching'?'Coaching':p.tipo==='Assessment'?'Assessment':'Capacitaciones')}}
   else if(i.t==='beca'){r.linea='Becas';r.tipoL='Becas'}
-  else if(i.t==='idi'){r.linea='Idiomas';const f=DB.fidi.find(x=>x.id===i.id);r.sub=f&&f.profe==='Nulinga'?'Idiomas Nulinga':'Idiomas Particulares';r.prov=f&&f.profe;r.tipoL='Idiomas'}
+  else if(i.t==='idi'){r.linea='Idiomas';const f=DB.fidi.find(x=>x.id===i.id);r.sub=f&&f.profe==='Nulinga'?'Idiomas Nulinga':'Idiomas Particulares';r.prov=f&&f.profe;r.tipoL='Idiomas';r.mes=(f&&f.mes)||'Sin fecha'}
   else if(i.t==='comp'){const k=DB.comp.find(x=>x.id===i.id)||{};if(k.tipo==='Idioma'){r.linea='Idiomas';r.sub='Idiomas Particulares';r.tipoL='Idiomas'}else if(k.tipo==='Beca'){r.linea='Becas';r.tipoL='Becas'}}
   rows.push(r)}));
  return rows}
@@ -1372,7 +1400,7 @@ V.plan=(arg)=>{
    <td class="num sub2" style="font-size:11.5px">${nros.length?esc(nros[0])+(nros.length>1?' <b>+'+(nros.length-1)+'</b>':''):'—'}</td>
    <td>${chip(p.est)}</td>
    <td class="r" onclick="event.stopPropagation()" style="white-space:nowrap">
-    <button class="btn ${p.prox?'':'n'} s" title="${p.prox?'Pasa al '+sigEj(EJ)+' — tocá para sacarla':'Marcar para que pase al '+sigEj(EJ)}" onclick="togProx('${p.id}')">⏭️</button>
+    ${p.encuesta?`<button class="btn n s" title="Abrir la encuesta" onclick="abrirEncuesta('${p.id}')">📋</button> `:''}<button class="btn ${p.prox?'':'n'} s" title="${p.prox?'Pasa al '+sigEj(EJ)+' — tocá para sacarla':'Marcar para que pase al '+sigEj(EJ)}" onclick="togProx('${p.id}')">⏭️</button>
     <select class="fi" style="padding:3px 4px;font-size:11px;width:34px" title="Cancelar, diferir o volver al estado automático" onchange="event.stopPropagation();cambiarEst('${p.id}',this.value);this.value=''">
      <option value="">⋯</option><option value="Cancelada">Cancelar</option><option value="Diferida">Diferir</option><option value="auto">Estado automático</option></select>
     <button class="btn n s" onclick="borrarAct('${p.id}')">✕</button></td></tr>`}).join('')
@@ -1422,6 +1450,7 @@ V.act=(id)=>{
     ${p.presup==='Fuera'?'<span class="chip c-fue">Fuera de presupuesto</span>':'<span class="chip c-gris">Dentro del presupuesto</span>'}
     <span class="chip c-gris">${esc(p.prov)}</span></div></div>
    <div style="display:flex;gap:8px;flex-wrap:wrap">
+    ${p.encuesta?`<button class="btn g" title="Abrir la encuesta de esta capacitación" onclick="abrirEncuesta('${p.id}')">📋 Encuesta</button>`:''}
     <button class="btn d" onclick="borrarAct('${p.id}')">Eliminar</button></div></div>
   ${p.motivo?`<div class="aviso w" style="margin-top:14px"><b>${p.est}:</b> ${esc(p.motivo)}</div>`:''}
   ${p.accion?`<div class="aviso" style="margin-top:14px"><b>Pendiente anotado en el Excel:</b> ${esc(p.accion)}</div>`:''}
@@ -1488,6 +1517,7 @@ function fiDatos(p){
   </div></div></div>
 
  <div class="sec d"><div class="sec-h"><div class="sec-ic">📝</div><div><h3>Seguimiento</h3><p>Notas y pendientes de esta capacitación</p></div></div><div class="sec-b"><div class="form">
+   <div class="f full"><label>Link de la encuesta de satisfacción</label><input id="e_enc" type="url" placeholder="https://…" value="${esc(p.encuesta||'')}"><div class="hint">Es la que se manda cuando termina. Queda como botón “Encuesta” arriba, en el Plan y en la solapa Participantes.</div></div>
    <div class="f full"><label>Notas</label><textarea id="e_notas" style="min-height:84px">${esc(p.notas||'')}</textarea></div>
    <div class="f full"><label>Pendiente / acción</label><input id="e_accion" value="${esc(p.accion||'')}" placeholder="Qué falta hacer o a quién hay que esperar"></div>
   </div></div></div>
@@ -1512,6 +1542,7 @@ function guardarAct(id){
  if(!p.enc.length&&document.getElementById('e_ini'))Object.assign(p,{ini:g('e_ini'),fin:g('e_fin')});
  if(document.getElementById('e_sub'))p.sub=g('e_sub');
  if(document.getElementById('e_lin'))p.linea=g('e_lin');
+ if(document.getElementById('e_enc')){const u=urlOk(g('e_enc'));if(u)p.encuesta=u;else delete p.encuesta}
  syncEstadosAct();
  if(p.prov&&!DB.prov.some(x=>x.nom===p.prov))
   DB.prov.push({id:uid('P'),nom:p.prov,tipos:[p.tipo],mail:'',tel:'',cuit:'',contacto:'',notas:''});
@@ -1657,6 +1688,7 @@ function fiParts(p){
     <button title="Quitar" onclick="rmPart('${p.id}',${i})">✕</button></div></div>`;
  return `
  ${AF}
+ ${encuestaCard(p)}
  <div class="card"><div class="card-h"><h2>Agregar participantes</h2>
    <div class="n">se completan solos desde la nómina</div></div>
   <div class="card-b">
@@ -2136,6 +2168,7 @@ function formAlta(k){
   <div class="f"><label>Línea (Conocé · Crecé · Explorá)</label><select id="a_lin"><option value="">Elegí la línea…</option>${LINEAS.map(t=>`<option>${t}</option>`).join('')}</select>
    <div class="hint">Define de qué parte del presupuesto sale.</div></div>
   <div class="f"><label>Monto · lo que pagamos</label><input class="money" type="text" inputmode="numeric" id="a_ppto" value="0"></div>
+  <div class="f full"><label>Link de la encuesta (opcional)</label><input id="a_enc" type="url" placeholder="https://… la encuesta que se manda al terminar"></div>
   ${esCoa?`<div class="f"><label>Fecha de inicio</label><input type="date" id="a_ini"></div>
    <div class="f"><label>Fecha de finalización</label><input type="date" id="a_fin"></div>`
    :esExt?`<div class="f"><label>Fecha de inscripción</label><input type="date" id="a_fli"></div>
@@ -2180,6 +2213,7 @@ function crear(k){
   freal:'',ini:g('a_ini'),fin:g('a_fin'),ppto:+g('a_ppto')||0,real:+g('a_ppto')||0,carg:'Micaela',motivo:'',prox:false,
   hs:'',notas:'',accion:'',chk:[],docs:[],gastos:[],parts:[],enc,asis:{},alta:HOY};
  if(k==='coa'&&g('a_ini'))p.enc=[{id:uid('E'),fecha:g('a_ini'),hora:'',dur:0,tit:nom+' · inicio',lugar:''}];
+ if(g('a_enc').trim())p.encuesta=urlOk(g('a_enc'));
  DB.plan.push(p);
  if(!DB.prov.some(x=>x.nom===p.prov))
   DB.prov.push({id:uid('P'),nom:p.prov,tipos:[p.tipo],mail:'',tel:'',cuit:'',contacto:'',notas:''});
@@ -3711,6 +3745,27 @@ function objGuardar(){const v=k=>+(document.getElementById('ob_'+k)||{}).value||
  if(!ok(['conoce','crece','explora','becas','idiomas'])||!ok(['rol','blandas','ia'])||!ok(['part','nul'])){toast('Cada grupo tiene que sumar 100%');return}
  DB.cfg.obj={};['conoce','crece','explora','becas','idiomas','rol','blandas','ia','part','nul'].forEach(k=>DB.cfg.obj[k]=v(k));guardar();cerrar();refresh();toast('Objetivos guardados')}
 function objRestaurar(){delete DB.cfg.obj;guardar();cerrar();refresh();toast('Objetivos del plan restaurados')}
+/* dimensiones para cruzar (cualquiera contra cualquiera) */
+const CRD={lin:['Línea',r=>r.linea],sub:['Línea y subdivisión',r=>r.linea+(r.sub?' · '+r.sub:'')],soc:['Sociedad',r=>r.ab||r.soc||'—'],
+ cid:['Cuenta',r=>(r.desc||r.cta||'—')+(r.ab?' · '+r.ab:'')],area:['Vertical / área',r=>r.area||'—'],tipo:['Tipo de gasto',r=>r.tipoL],
+ est:['Estado',r=>r.cerrado?'Ejecutado':'Comprometido'],prov:['Proveedor',r=>r.prov||'—'],mes:['Mes de la capacitación',r=>r.mes||'—'],foco:['Foco',r=>r.foco||'—']};
+const CRPRE=[['Línea × Sociedad','lin','soc'],['Línea × Cuenta','lin','cid'],['Línea × Vertical','lin','area'],['Línea × Proveedor','lin','prov'],['Línea × Mes','lin','mes'],['Sociedad × Tipo','soc','tipo'],['Sociedad × Línea','soc','lin']];
+/* lectura rápida: lo que salta a la vista para decidir */
+function lecturaRapida(R,CATS,base){
+ const tot=R.reduce((a,r)=>a+r.m,0),out=[];if(!tot)return ['Todavía no hay movimientos para este recorte.'];
+ const por=f=>{const o={};R.forEach(r=>{const k=f(r);if(k)o[k]=(o[k]||0)+r.m});return Object.entries(o).sort((a,b)=>b[1]-a[1])};
+ const P=(v,d)=>pctD(v,d),$=plata;
+ const L=por(r=>r.linea!=='Sin línea'?r.linea:'');if(L.length)out.push(`La línea que más consume es <b>${esc(L[0][0])}</b>: ${$(L[0][1])} (${P(L[0][1],tot)} de lo cargado).`);
+ const uso=[...CATS.filter(c=>!c.noObj),...CATS.flatMap(c=>c.subs||[])].map(c=>{const ll=R.filter(c.f).reduce((a,r)=>a+r.m,0);return{n:c.n,ll,u:c.o?ll/c.o*100:0,o:c.o}}).filter(x=>x.o>0).sort((a,b)=>b.u-a.u)[0];
+ if(uso&&uso.ll)out.push(uso.u>100?`<b style="color:var(--rojo)">${esc(uso.n)} ya se pasó de su tope</b>: lleva ${$(uso.ll)} de ${$(uso.o)} (${uso.u.toLocaleString('es-AR',{maximumFractionDigits:1})}%).`:`La que más se acerca a su tope es <b>${esc(uso.n)}</b>: lleva ${$(uso.ll)} de ${$(uso.o)} (<b style="color:var(--verde)">${uso.u.toLocaleString('es-AR',{maximumFractionDigits:1})}%</b>).`);
+ const vacias=CATS.filter(c=>!c.noObj&&c.o>0&&!R.filter(c.f).reduce((a,r)=>a+r.m,0)).map(c=>c.n);if(vacias.length)out.push(`Todavía sin movimientos: <b>${vacias.map(esc).join(', ')}</b>.`);
+ const S=por(r=>r.soc).filter(x=>x[1]>0);if(S.length){const dot=n=>DB.nom.filter(p=>!/^92/.test(String(p.legajo||''))&&p.sociedad===n).length;
+  out.push(`La sociedad que más concentra es <b>${esc(ab(S[0][0]))}</b> (${P(S[0][1],tot)} del gasto).`);
+  const pc=S.slice(0,5).map(([n,v])=>({n,v,d:dot(n)})).filter(x=>x.d>0).map(x=>`${esc(ab(x.n))} ${$(Math.round(x.v/x.d))}`);
+  if(pc.length>1)out.push(`Gasto por colaborador (nómina de cada sociedad): ${pc.join(' · ')}.`)}
+ const PR=por(r=>r.prov&&!['A definir','Interna'].includes(r.prov)?r.prov:'');if(PR.length)out.push(`El proveedor que más concentra es <b>${esc(PR[0][0])}</b>: ${$(PR[0][1])} (${P(PR[0][1],tot)}).`);
+ const com=R.filter(r=>!r.cerrado).reduce((a,r)=>a+r.m,0);if(com)out.push(`<b>${P(com,tot)}</b> de lo cargado (${$(com)}) todavía no tiene N° de factura.`);
+ return out}
 function presDetalle(tabs){
  const base=presBase(),O=objTodo(base),ALL=detalleDatos(),R=ALL.filter(prdFiltro),fuera=ALL.filter(r=>r.di&&r.cerrado).reduce((a,r)=>a+r.m,0);
  const sm=(L,ej)=>L.filter(r=>ej?r.cerrado:!r.cerrado).reduce((a,r)=>a+r.m,0),hay=['soc','cid','area','tipo','est','lin'].some(k=>PRD[k]);
@@ -3728,30 +3783,30 @@ function presDetalle(tabs){
   {n:'Sin línea',noObj:true,f:r=>r.linea==='Sin línea',c:CLIN['Sin línea']}];
  const filaH=(c,esSub,padre)=>{const L=R.filter(c.f),ej=sm(L,true),com=sm(L,false),ll=ej+com;
   if(c.noObj&&!(ej+com))return '';
-  const pasa=!c.noObj&&c.o>0&&ll>c.o+.5,col=c.noObj?'var(--gris)':(pasa?'var(--rojo)':'var(--verde)'),uso=c.o?ll/c.o*100:0;
+  const pasa=!c.noObj&&c.o>0&&ll>c.o+.5,col=c.noObj?'var(--gris)':(pasa?'var(--rojo)':'var(--verde)'),uso=c.o?ll/c.o*100:0,disp=c.o-ll;
   return `<tr style="${esSub?'':'background:var(--niebla)'}"><td class="nom" style="${esSub?'padding-left:30px;font-weight:500':'font-weight:700'}">${!esSub&&c.c?`<span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${c.c};margin-right:8px"></span>`:''}${esc(c.n)}${esSub?`<span class="sub2"> · ${c.p.toLocaleString('es-AR')}% de ${padre}</span>`:''}</td>
    <td class="r num">${c.noObj?'—':pctD(c.o,base)}</td><td class="r num">${c.noObj?'—':plata(c.o)}</td>
    <td class="r num">${ej?plata(ej):'—'}</td><td class="r num">${com?plata(com):'—'}</td><td class="r num" style="font-weight:700">${ll?plata(ll):'—'}</td>
-   <td class="r num" style="color:${col};font-weight:700">${ll?pctD(ll,base):'—'}${pasa?' <span class="chip c-can">se pasa</span>':''}</td>
+   <td class="r num" style="color:${col};font-weight:700;white-space:nowrap">${c.noObj?(ll?pctD(ll,base):'—'):`${pctD(ll,base)} <span style="font-weight:500;opacity:.75">/ ${pctD(c.o,base)}</span>`}</td>
    <td style="min-width:110px">${c.noObj?'':`<div style="background:var(--linea);border-radius:5px;height:8px;overflow:hidden"><div style="width:${Math.min(100,uso)}%;height:100%;background:${pasa?'var(--rojo)':'var(--verde)'}"></div></div><div class="sub2 num" style="font-size:11px">${uso.toLocaleString('es-AR',{maximumFractionDigits:1})}% del objetivo</div>`}</td>
-   <td class="r num" style="color:${c.noObj?'inherit':(c.o-ll<0?'var(--rojo)':'var(--verde)')}">${c.noObj?'—':(c.o-ll<0?'−':'')+plata(Math.abs(c.o-ll))}</td></tr>`};
- const lineasSinObj=CATS.filter(c=>c.noObj),tot=CATS.filter(c=>!c.noObj),
-  ejT=sm(R,true),comT=sm(R,false),pasan=[...tot,...tot.flatMap(c=>c.subs||[])].filter(c=>{const L=R.filter(c.f),ll=sm(L,true)+sm(L,false);return c.o>0&&ll>c.o+.5}),
-  sinL=R.filter(r=>r.linea==='Sin línea').reduce((a,r)=>a+r.m,0),pSin=vivas().filter(p=>!p.linea);
- /* filtros */
+   <td class="r num" style="${c.noObj?'':(disp<0?'background:#FDEAEA;color:var(--rojo);font-weight:700':'color:var(--verde)')}">${c.noObj?'—':(disp<0?'Excedido −':'')+plata(Math.abs(disp))}</td></tr>`};
+ const tot=CATS.filter(c=>!c.noObj),ejT=sm(R,true),comT=sm(R,false),
+  pasan=[...tot,...tot.flatMap(c=>c.subs||[])].filter(c=>{const L=R.filter(c.f),ll=sm(L,true)+sm(L,false);return c.o>0&&ll>c.o+.5});
  const uniq=f=>[...new Set(ALL.filter(r=>!r.di).map(f).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),'es'));
  const sel=(k,lbl,opts)=>`<select class="fi" onchange="prdSet('${k}',this.value)"><option value="">${lbl}</option>${opts.map(([v,t])=>`<option value="${esc(v)}" ${PRD[k]===v?'selected':''}>${esc(t)}</option>`).join('')}</select>`;
- /* cruces */
- const DIMS={soc:['Sociedad',r=>r.ab||r.soc||'—'],cid:['Cuenta',r=>(r.desc||r.cta||'—')+(r.ab?' · '+r.ab:'')],area:['Vertical / área',r=>r.area||'—'],tipo:['Tipo de gasto',r=>r.tipoL],est:['Estado',r=>r.cerrado?'Ejecutado':'Comprometido']};
- const [dn,df]=DIMS[PRD.cruce]||DIMS.soc,porCol={};R.forEach(r=>{const k=df(r);porCol[k]=(porCol[k]||0)+r.m});
- let cols=Object.entries(porCol).sort((a,b)=>b[1]-a[1]).map(x=>x[0]);const MAXC=9,otros=cols.length>MAXC?cols.slice(MAXC):[];cols=cols.slice(0,MAXC);
- const filasPiv=[];CATS.forEach(c=>{filasPiv.push([c.n,c.f,false,c.c]);(c.subs||[]).forEach(x=>filasPiv.push([x.n,x.f,true]))});
- const cel=(f,key)=>R.filter(r=>f(r)&&(key==='__otros'?otros.includes(df(r)):df(r)===key)).reduce((a,r)=>a+r.m,0);
- const heads=[...cols,...(otros.length?['__otros']:[])];
- const pivote=filasPiv.map(([n,f,sub,c])=>{const vs=heads.map(k=>cel(f,k)),t=vs.reduce((a,x)=>a+x,0);if(!t&&(sub||n==='Sin línea'))return '';
-  return `<tr style="${sub?'':'background:var(--niebla)'}"><td class="nom" style="${sub?'padding-left:30px;font-weight:500':'font-weight:700'}">${esc(n)}</td>${vs.map(v=>`<td class="r num">${v?platak(v):'—'}</td>`).join('')}<td class="r num" style="font-weight:700">${t?platak(t):'—'}</td></tr>`}).join('');
- const totCol=heads.map(k=>R.filter(r=>k==='__otros'?otros.includes(df(r)):df(r)===k).reduce((a,r)=>a+r.m,0));
- const mov=R.slice().sort((a,b)=>b.m-a.m).slice(0,120);
+ /* cruces: filas × columnas, con la medida y el modo (monto o %) que elijas */
+ const crF=PRD.crF||'lin',crC=PRD.cruce||'soc',med=PRD.crM||'tot',modo=PRD.crP||'monto',fF=CRD[crF][1],fC=CRD[crC][1];
+ const val=r=>med==='ej'?(r.cerrado?r.m:0):med==='com'?(r.cerrado?0:r.m):r.m;
+ const M={},rowT={},colT={};let grand=0;
+ R.forEach(r=>{const v=val(r);if(!v)return;const a=fF(r),b=fC(r);(M[a]=M[a]||{})[b]=((M[a]||{})[b]||0)+v;rowT[a]=(rowT[a]||0)+v;colT[b]=(colT[b]||0)+v;grand+=v});
+ const orden=(keys,T,dim)=>dim==='lin'?ORDLIN().filter(x=>keys.includes(x)):dim==='mes'?keys.slice().sort((a,b)=>a==='Sin fecha'?1:b==='Sin fecha'?-1:a.localeCompare(b)):keys.slice().sort((a,b)=>T[b]-T[a]);
+ const rowsK=orden(Object.keys(rowT),rowT,crF);let colsK=orden(Object.keys(colT),colT,crC);const MAXC=10;let otros=[];if(colsK.length>MAXC){otros=colsK.slice(MAXC);colsK=colsK.slice(0,MAXC)}
+ const heads=[...colsK,...(otros.length?['__otros']:[])],cel=(a,b)=>b==='__otros'?otros.reduce((s,x)=>s+((M[a]||{})[x]||0),0):((M[a]||{})[b]||0),colTot=b=>b==='__otros'?otros.reduce((s,x)=>s+colT[x],0):colT[b];
+ const show=(v,a,b)=>modo==='monto'?v:(modo==='pfila'?(rowT[a]?v/rowT[a]*100:0):modo==='pcol'?(colTot(b)?v/colTot(b)*100:0):(grand?v/grand*100:0));
+ const fmt=v=>modo==='monto'?(v?platak(v):'—'):(v?v.toLocaleString('es-AR',{minimumFractionDigits:1,maximumFractionDigits:1})+'%':'—');
+ let maxV=0;rowsK.forEach(a=>heads.forEach(b=>{const x=show(cel(a,b),a,b);if(x>maxV)maxV=x}));
+ const heat=x=>x&&maxV?`background:rgba(0,142,170,${(0.07+0.27*x/maxV).toFixed(2)})`:'';
+ const ins=lecturaRapida(R,CATS,base);
  return `
  <div class="head"><div class="headrow"><div><div class="eyebrow">Ejercicio ${EJ}</div>
   <h1>Presupuesto <span class="par">(</span> ${EJ} <span class="par">)</span></h1>
@@ -3762,38 +3817,43 @@ function presDetalle(tabs){
   ${met('Presupuesto base',plata(base),'sobre este total se calculan los porcentajes','met-tot')}
   ${met('Llevamos ejecutado',plata(ejT),hay?'del recorte elegido':'ya con N° de factura / pagado','met-eje')}
   ${met('Comprometido sin factura',plata(comT),'cargado pero todavía sin N° de factura','met-per')}
-  ${pasan.length?met('Se pasan del objetivo',pasan.length,pasan.map(c=>esc(c.n)).join(' · ')+' · llevan más de lo previsto','met-exc mal'):met('Líneas dentro del objetivo','✓','ninguna se pasa de su % del presupuesto','met-dis ok')}
-  ${pSin.length?met('Sin línea',plata(sinL),`${pSin.length} capacitación${pSin.length===1?'':'es'} sin línea: elegí Conocé, Crecé o Explorá`,'met-fue warn'):''}
+  ${pasan.length?met('Se pasan del objetivo',pasan.length,pasan.map(c=>esc(c.n)).join(' · ')+' · llevan más de lo previsto','met-exc mal'):met('Todo dentro del objetivo','✓','ninguna línea se pasa de su % del presupuesto','met-dis ok')}
  </div>
  <div class="filtros" style="margin-top:14px"><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
   <span class="sub2" style="font-weight:600">Filtrar</span>
-  ${sel('lin','Todas las líneas',[...ORDLIN().map(x=>[x,x])])}
+  ${sel('lin','Todas las líneas',ORDLIN().map(x=>[x,x]))}
   ${sel('soc','Todas las sociedades',uniq(r=>r.soc).map(x=>[x,x]))}
   ${sel('cid','Todas las cuentas',partidas().map(c=>[c.id,(c.ab||'')+' · '+c.desc]))}
   ${sel('area','Todas las verticales',uniq(r=>r.area).map(x=>[x,x]))}
   ${sel('tipo','Todos los tipos de gasto',uniq(r=>r.tipoL).map(x=>[x,x]))}
   ${sel('est','Ejecutado y comprometido',[['ej','Solo ejecutado'],['com','Solo comprometido']])}
-  <button class="btn n s" onclick="PRD={soc:'',cid:'',area:'',tipo:'',est:'',lin:'',cruce:PRD.cruce};refresh()">Limpiar</button></div></div>
+  <button class="btn n s" onclick="PRD={soc:'',cid:'',area:'',tipo:'',est:'',lin:'',cruce:PRD.cruce,crF:PRD.crF,crM:PRD.crM,crP:PRD.crP};refresh()">Limpiar</button></div></div>
  ${hay?`<div class="aviso" style="margin-top:12px"><b>Recorte activo.</b> Los montos son solo del recorte elegido; el objetivo sigue siendo el total de cada línea (por eso los % son lo que ese recorte aporta a la línea).</div>`:''}
- <div class="card" style="margin-top:14px"><div class="card-h"><h2>Por línea: objetivo y lo que llevamos</h2><div class="n">las DI van aparte${fuera?` (${plata(fuera)} ejecutados fuera de presupuesto)`:''}</div></div>
+ <div class="card" style="margin-top:14px"><div class="card-h"><h2>Por línea: objetivo y lo que llevamos</h2><div class="n">Total = ejecutado + comprometido · las DI van aparte${fuera?` (${plata(fuera)} ejecutados fuera de presupuesto)`:''}</div></div>
   <div class="card-b flush"><div class="scroll"><table>
-   <thead><tr><th>Línea</th><th class="r">Objetivo %</th><th class="r">Objetivo $</th><th class="r">Ejecutado</th><th class="r">Comprometido</th><th class="r">Llevado</th><th class="r">% del presupuesto</th><th>Uso del objetivo</th><th class="r">Disponible</th></tr></thead>
+   <thead><tr><th style="min-width:230px">Línea</th><th class="r">Objetivo %</th><th class="r">Objetivo $</th><th class="r">Ejecutado</th><th class="r">Comprometido</th><th class="r">Total</th><th class="r" title="Lo que lleva sobre el presupuesto / lo que le corresponde">% del presupuesto (usado / límite)</th><th>Uso del objetivo</th><th class="r">Disponible</th></tr></thead>
    <tbody>${CATS.map(c=>filaH(c,false)+(c.subs||[]).map(x=>filaH(x,true,c.n)).join('')).join('')}</tbody>
    <tfoot><tr><td>Total</td><td class="r num">${pctD(tot.reduce((a,c)=>a+c.o,0),base)}</td><td class="r num">${plata(tot.reduce((a,c)=>a+c.o,0))}</td><td class="r num">${plata(ejT)}</td><td class="r num">${plata(comT)}</td><td class="r num">${plata(ejT+comT)}</td><td class="r num">${pctD(ejT+comT,base)}</td><td></td><td></td></tr></tfoot>
   </table></div></div></div>
- <div class="card" style="margin-top:14px"><div class="card-h"><h2>Cruces</h2><div class="n" style="display:flex;gap:8px;align-items:center">líneas por <select class="fi" onchange="prdSet('cruce',this.value)">${Object.entries(DIMS).map(([k,v])=>`<option value="${k}" ${PRD.cruce===k?'selected':''}>${v[0]}</option>`).join('')}</select></div></div>
-  <div class="card-b flush"><div class="scroll"><table>
-   <thead><tr><th>Línea</th>${heads.map(k=>`<th class="r">${k==='__otros'?'Otros ('+otros.length+')':esc(k)}</th>`).join('')}<th class="r">Total</th></tr></thead>
-   <tbody>${pivote||`<tr><td colspan="${heads.length+2}"><div class="vacio">No hay movimientos para este recorte.</div></td></tr>`}</tbody>
-   <tfoot><tr><td>Total</td>${totCol.map(v=>`<td class="r num">${v?platak(v):'—'}</td>`).join('')}<td class="r num">${platak(ejT+comT)}</td></tr></tfoot>
-  </table></div></div></div>
- ${pSin.length?`<div class="card" style="margin-top:14px"><div class="card-h"><h2>Capacitaciones sin línea</h2><div class="n">${pSin.length} · elegí a cuál pertenece cada una</div></div>
-  <div class="card-b flush"><div class="scroll" style="max-height:340px"><table><thead><tr><th>Capacitación</th><th>Proveedor</th><th class="r">Monto</th><th>Línea</th></tr></thead>
-   <tbody>${pSin.slice(0,60).map(p=>`<tr><td class="nom"><a href="#" onclick="ir('act','${p.id}');return false">${esc(p.nom)}</a></td><td class="sub2">${esc(p.prov||'—')}</td><td class="r num">${(p.real||p.ppto)?plata(p.real||p.ppto):'—'}</td>
-    <td><select class="fi" onchange="setLinea('${p.id}',this.value)"><option value="">Elegí…</option>${LINEAS.map(l=>`<option>${l}</option>`).join('')}</select></td></tr>`).join('')}</tbody></table></div></div></div>`:''}
+ <div class="card" style="margin-top:14px"><div class="card-h"><h2>Lectura rápida</h2><div class="n">lo que se ve en los números${hay?' del recorte':''}</div></div>
+  <div class="card-b"><ul style="margin:0;padding-left:18px;line-height:1.9;font-size:13px">${ins.map(x=>`<li>${x}</li>`).join('')}</ul></div></div>
+ <div class="card" style="margin-top:14px"><div class="card-h"><h2>Cruces</h2><div class="n">elegí qué poner en las filas y qué en las columnas</div></div>
+  <div class="card-b">
+   <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">${CRPRE.map(([t,f,c])=>`<button class="cb ${crF===f&&crC===c?'on':''}" onclick="PRD.crF='${f}';PRD.cruce='${c}';refresh()">${t}</button>`).join('')}</div>
+   <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+    <label class="sub2">Filas</label><select class="fi" onchange="prdSet('crF',this.value)">${Object.entries(CRD).map(([k,v])=>`<option value="${k}" ${crF===k?'selected':''}>${v[0]}</option>`).join('')}</select>
+    <label class="sub2">Columnas</label><select class="fi" onchange="prdSet('cruce',this.value)">${Object.entries(CRD).map(([k,v])=>`<option value="${k}" ${crC===k?'selected':''}>${v[0]}</option>`).join('')}</select>
+    <label class="sub2">Medida</label><select class="fi" onchange="prdSet('crM',this.value)"><option value="tot" ${med==='tot'?'selected':''}>Total (ejecutado + comprometido)</option><option value="ej" ${med==='ej'?'selected':''}>Solo ejecutado</option><option value="com" ${med==='com'?'selected':''}>Solo comprometido</option></select>
+    <label class="sub2">Mostrar</label><select class="fi" onchange="prdSet('crP',this.value)"><option value="monto" ${modo==='monto'?'selected':''}>Montos</option><option value="pfila" ${modo==='pfila'?'selected':''}>% de la fila</option><option value="pcol" ${modo==='pcol'?'selected':''}>% de la columna</option><option value="ptot" ${modo==='ptot'?'selected':''}>% del total</option></select></div>
+   <div class="scroll" style="border:1px solid var(--linea);border-radius:12px"><table>
+    <thead><tr><th>${esc(CRD[crF][0])}</th>${heads.map(k=>`<th class="r">${k==='__otros'?'Otros ('+otros.length+')':esc(k)}</th>`).join('')}<th class="r">Total</th><th class="r">% del total</th></tr></thead>
+    <tbody>${rowsK.length?rowsK.map(a=>`<tr><td class="nom">${esc(a)}</td>${heads.map(b=>{const x=show(cel(a,b),a,b);return `<td class="r num" style="${heat(x)}">${fmt(x)}</td>`}).join('')}<td class="r num" style="font-weight:700">${platak(rowT[a])}</td><td class="r num">${pctD(rowT[a],grand)}</td></tr>`).join('')
+     :`<tr><td colspan="${heads.length+3}"><div class="vacio">No hay movimientos para este recorte.</div></td></tr>`}</tbody>
+    <tfoot><tr><td>Total</td>${heads.map(b=>`<td class="r num">${platak(colTot(b))}</td>`).join('')}<td class="r num">${platak(grand)}</td><td class="r num">100%</td></tr></tfoot></table></div>
+   <div class="sub2" style="margin-top:8px">Cuanto más oscuro el casillero, más pesa. Con <b>% de la fila</b> ves cómo se reparte cada ${esc(CRD[crF][0].toLowerCase())}; con <b>% de la columna</b>, de dónde viene cada ${esc(CRD[crC][0].toLowerCase())}.</div></div></div>
  <div class="card" style="margin-top:14px"><div class="card-h"><h2>Movimientos</h2><div class="n">${R.length} · los ${Math.min(120,R.length)} más grandes</div></div>
   <div class="card-b flush"><div class="scroll" style="max-height:420px"><table><thead><tr><th>Línea</th><th>Concepto</th><th>Cuenta</th><th>Estado</th><th class="r">Monto</th></tr></thead>
-   <tbody>${mov.length?mov.map(r=>`<tr class="${r.aid?'clic':''}" ${r.aid?`onclick="ir('act','${r.aid}')"`:''}><td><span class="chip" style="background:${(CLIN[r.linea]||'#5B6B70')}22;color:${CLIN[r.linea]||'#5B6B70'};font-weight:700">${esc(r.linea)}</span>${r.sub?`<div class="sub2" style="font-size:10.5px">${esc(r.sub)}</div>`:''}</td>
+   <tbody>${R.length?R.slice().sort((a,b)=>b.m-a.m).slice(0,120).map(r=>`<tr class="${r.aid?'clic':''}" ${r.aid?`onclick="ir('act','${r.aid}')"`:''}><td><span class="chip" style="background:${(CLIN[r.linea]||'#5B6B70')}22;color:${CLIN[r.linea]||'#5B6B70'};font-weight:700">${esc(r.linea)}</span>${r.sub?`<div class="sub2" style="font-size:10.5px">${esc(r.sub)}</div>`:''}</td>
     <td class="nom">${esc(r.nom)}</td><td class="sub2">${esc(r.desc)} · ${esc(r.ab||'')}</td><td>${r.cerrado?'<span class="chip c-fin">Ejecutado</span>':'<span class="chip c-pen">Comprometido</span>'}</td><td class="r num" style="font-weight:600">${plata(r.m)}</td></tr>`).join('')
     :'<tr><td colspan="5"><div class="vacio">No hay movimientos para este recorte.</div></td></tr>'}</tbody></table></div></div></div>`}
 const ORDLIN=()=>['Conocé','Crecé','Explorá','Becas','Idiomas','Sin línea'];
@@ -5106,16 +5166,27 @@ function aplicarNom(){
  NOMPREV=null;guardar();cerrar();ir('nomi');
  toast(`Nómina actualizada: ${D.altas.length} ingresos, ${quitar.length} egresos, ${D.cambios.length} cambios`);
 }
+/* recordatorio mensual (desde el día 10): lo podés cerrar para este mes o pedir que te lo recuerden más tarde; se guarda en tu navegador */
+function nomRecGet(){try{return JSON.parse(localStorage.getItem('fyo_nomrec')||'{}')}catch(e){return {}}}
+function nomRecSet(o){try{localStorage.setItem('fyo_nomrec',JSON.stringify(Object.assign(nomRecGet(),o)))}catch(e){}}
+function nomOculto(){const r=nomRecGet();return r.cerrado===HOY.slice(0,7)||!!(r.hasta&&r.hasta>HOY)}
+function nomCerrar(){nomRecSet({cerrado:HOY.slice(0,7)});refresh();toast('Listo: no te lo muestro más este mes')}
+function nomPosponer(){const d=new Date(HOY+'T12:00:00');d.setDate(d.getDate()+1);nomRecSet({hasta:d.toISOString().slice(0,10)});refresh();toast('Te lo recuerdo mañana')}
 /* aviso mensual: desde el día 10 */
 function nomVence(){return +HOY.slice(8,10)>=10&&!(DB.nomAct&&DB.nomAct.mes===HOY.slice(0,7))}
 function nomProx(){const m=HOY.slice(0,7);
  if(DB.nomAct&&DB.nomAct.mes===m)return addMes(m,1)+'-10';
  return +HOY.slice(8,10)>=10?HOY:m+'-10'}
 function nomAviso(){const pend=(DB.nomPend||[]).length;
- return `<div class="aviso w" style="margin-bottom:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
- <span style="font-size:20px">${pend?'👥':'📅'}</span><div style="flex:1">${pend?`<b>Hay ${pend} egresos de la nómina para revisar.</b> Entrá, mirá quién se fue y confirmá antes de borrar nada.`
-  :`<b>Toca actualizar la nómina de ${mesTxt(HOY.slice(0,7))}.</b> ${DB.nomAct?`La última fue el ${fecha(DB.nomAct.fecha)}.`:'Todavía no se cargó ninguna desde esta pantalla.'} Subí el Excel y ves quién ingresó, quién se fue y qué cambió.`}</div>
- <button class="btn" onclick="ir('nomi')">${pend?'Revisar egresos':'Actualizar nómina'}</button></div>`}
+ if(pend)return `<div class="aviso w" style="margin-bottom:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+ <span style="font-size:20px">👥</span><div style="flex:1"><b>Hay ${pend} egresos de la nómina para revisar.</b> Entrá, mirá quién se fue y confirmá antes de borrar nada.</div>
+ <button class="btn" onclick="ir('nomi')">Revisar egresos</button></div>`;
+ return `<div class="nom-rec"><span class="nom-bell">🔔</span>
+  <div style="flex:1;min-width:240px"><div class="nom-rec-t">¡RECORDATORIO!</div>
+   <div><b>Actualizá la nómina de ${mesTxt(HOY.slice(0,7))}</b> para que quede al día. ${DB.nomAct?`La última fue el ${fecha(DB.nomAct.fecha)}.`:'Todavía no se cargó ninguna desde esta pantalla.'} Subí el Excel y ves quién ingresó, quién se fue y qué cambió.</div></div>
+  <button class="btn" onclick="ir('nomi')">Actualizar nómina</button>
+  <button class="btn n" onclick="nomPosponer()">Recordarme más tarde</button>
+  <button class="nom-x" title="Cerrar: no mostrar más este mes" onclick="nomCerrar()">✕</button></div>`}
 function nomPendCard(){
  const L=(DB.nomPend||[]).map(n=>DB.nom.find(p=>p.nombre===n)).filter(Boolean);if(!L.length)return '';
  return `<div class="card" style="border-color:var(--naranja)"><div class="card-h"><h2>Egresos para revisar (${L.length})</h2><div class="n">estaban en la app y no figuran en la nómina nueva</div></div>
@@ -5294,7 +5365,7 @@ function exPlan(){
  syncEstadosAct();
  const ejs=exEjs(),A=DB.plan.filter(p=>ejs.includes(p.ej)&&(!EX.solo||p.est==='En curso'||p.est==='Finalizada'));
  const nros=p=>[...DB.fact.filter(x=>x.aid===p.id&&x.nro).map(x=>x.nro),...(p.gastos||[]).filter(g=>g.nro).map(g=>g.nro)];
- const caps=A.map(p=>{const f=actFechas(p),ac=activos(p);return{'Ejercicio':p.ej,'Capacitación':p.nom,'Tipo':p.tipo+(p.sub?' · '+p.sub:''),'Proveedor':p.prov||'','Modalidad':p.dict==='Interno'?'Interna':'Externa','Foco':p.foco||'','Línea':p.linea||'','Estado':p.est,
+ const caps=A.map(p=>{const f=actFechas(p),ac=activos(p);return{'Ejercicio':p.ej,'Capacitación':p.nom,'Tipo':p.tipo+(p.sub?' · '+p.sub:''),'Proveedor':p.prov||'','Modalidad':p.dict==='Interno'?'Interna':'Externa','Foco':p.foco||'','Línea':p.linea||'','Link de la encuesta':p.encuesta||'','Estado':p.est,
   'Fecha de inicio':f.ini||'','Fecha de fin':f.fin||'','Fecha de inscripción':p.fli||'','Participantes':ac.length,'Asistencia promedio (%)':tieneAsis(p)?asisProm(p):'',
   'Monto previsto':exNum(p.ppto),'Monto real':exNum(p.real),'N° de factura':nros(p).join(' / '),'Arrastra del ej. pasado':p.arrastra?'Sí':'','Pasa al próximo ejercicio':p.prox?'Sí':'',
   'Notas':p.notas||'','Personas':ac.map(x=>x.nom).join('; ')}});
