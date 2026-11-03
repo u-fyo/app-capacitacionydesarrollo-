@@ -1195,13 +1195,13 @@ V.res=()=>{
 };
 
 /* ── torta de estados con filtros ── */
-let RE={vn:'',foco:'',dict:'',lider:''};
+let RE={vn:'',foco:'',dict:'',lider:'',linea:''};
 const CESTC={'Finalizada':'#22A06B','En curso':'#008EAA','Pendiente':'#E09B00','Inscripto':'#E09B00','Sin iniciar':'#E09B00','Diferida':'#7C5CD6','Cancelada':'#A9BFC5'};
 const FASES=['Sin iniciar','En curso','Finalizada','Cancelada','Diferida'];
 const estFiltro=(p,e)=>e==='Sin iniciar'?(p.est==='Pendiente'||p.est==='Inscripto'):p.est===e;
 function cardEstado(){
  const eqF=RE.lider?eqDe(RE.lider):null,setF=eqF?new Set(eqF.gente):null;
- const L=plan().filter(p=>NA(p)&&(!RE.foco||p.foco===RE.foco)&&(!RE.dict||p.dict===RE.dict)
+ const L=plan().filter(p=>NA(p)&&(!RE.linea||p.linea===RE.linea)&&(!RE.foco||p.foco===RE.foco)&&(!RE.dict||p.dict===RE.dict)
   &&(!RE.vn||p.parts.some(x=>x.est!=='Baja'&&x.vn===RE.vn))
   &&(!setF||p.parts.some(x=>x.est!=='Baja'&&setF.has(x.nom))));
  const data=FASES.map(e=>({t:e==='Finalizada'?'Finalizado':e,v:L.filter(p=>estFiltro(p,e)).length,c:CESTC[e]})).filter(d=>d.v);
@@ -1212,17 +1212,18 @@ function cardEstado(){
   <div class="card-b">
    <div class="fgrid" style="margin-bottom:14px">
     ${fSel('re_vn','Vertical',RE.vn,{all:'Todas',list:VERTS})}
+    ${fSel('re_lin','Línea',RE.linea,{all:'Todas',list:['Conocé','Crecé','Explorá']})}
     ${fSel('re_foco','Foco',RE.foco,{all:'Todos',list:FOCOS})}
     ${fSel('re_dict','Dictado',RE.dict,{all:'Interno y externo',list:['Interno','Externo']})}
     ${fSel('re_lider','Líder',RE.lider,{all:'Todos',list:DB.eq.slice().sort((a,b)=>a.lider.localeCompare(b.lider)).map(e=>({v:e.lider,t:e.lider+' ('+e.n+')'}))})}
    </div>
-   ${(RE.vn||RE.foco||RE.dict||RE.lider)?`<div style="margin-bottom:10px">
-    ${fChips({vn:RE.vn,foco:RE.foco,dict:RE.dict,lider:RE.lider},
-     {vn:'Vertical',foco:'Foco',dict:'Dictado',lider:'Líder'},'reLimpiar')}</div>`:''}
+   ${(RE.vn||RE.foco||RE.dict||RE.lider||RE.linea)?`<div style="margin-bottom:10px">
+    ${fChips({linea:RE.linea,vn:RE.vn,foco:RE.foco,dict:RE.dict,lider:RE.lider},
+     {linea:'Línea',vn:'Vertical',foco:'Foco',dict:'Dictado',lider:'Líder'},'reLimpiar')}</div>`:''}
    ${tot?`<div class="donutwrap">
     ${donut(data,158)}
     <div class="leg-chart" style="flex:1;min-width:190px">
-     ${data.map(d=>`<div class="lc" onclick="F={q:'',est:'${d.t}',tipo:'',dict:'${RE.dict}',foco:'${RE.foco}',vn:'${js(RE.vn)}',lider:'${js(RE.lider)}',un:'',prov:'',presup:''};ir('plan')">
+     ${data.map(d=>`<div class="lc" onclick="F={q:'',est:'${d.t}',tipo:'',dict:'${RE.dict}',foco:'${RE.foco}',vn:'${js(RE.vn)}',lider:'${js(RE.lider)}',un:'',prov:'',presup:'',linea:'${RE.linea}'};ir('plan')">
       <i style="background:${d.c}"></i><span>${d.t}</span><b>${d.v}</b><span class="p">${pct(d.v,tot)}%</span></div>`).join('')}
      <div class="lc" style="border-top:1px solid var(--linea-2);padding-top:8px;cursor:default">
       <i style="background:transparent"></i><span>Personas alcanzadas</span><b>${pers.size}</b><span class="p"></span></div>
@@ -1235,7 +1236,7 @@ function cardEstado(){
 }
 function reLimpiar(k){RE[k]='';refresh()}
 V.res.after=()=>{
- [['re_vn','vn'],['re_foco','foco'],['re_dict','dict'],['re_lider','lider']].forEach(([id,k])=>{
+ [['re_vn','vn'],['re_lin','linea'],['re_foco','foco'],['re_dict','dict'],['re_lider','lider']].forEach(([id,k])=>{
   const e=$('#'+id);if(e)e.onchange=ev=>{RE[k]=ev.target.value;refresh()}});
 };
 /* ═════════════ LÍNEAS (Conocé · Crecé · Explorá) Y OBJETIVOS DEL PRESUPUESTO ═════════════ */
@@ -1246,7 +1247,10 @@ const CLIN={'Conocé':'#22A06B','Crecé':'#2F6FDE','Explorá':'#7C5CD6','Becas':
 function migrarPostCarga(){
  DB.mig=DB.mig||{};let c=false;
  DB.plan.forEach(p=>{if(!p.linea&&p.ej==='26.27'&&p.prov==='Interna'&&/^Mercado (granario|de capitales)$/.test(p.nom)){p.linea='Conocé';c=true}});
- if(!DB.mig.lineaCrece){DB.plan.forEach(p=>{if(!p.linea){p.linea='Crecé';c=true}});DB.mig.lineaCrece=1;c=true}
+ DB.plan.forEach(p=>{if(!p.linea){p.linea='Crecé';c=true}});   /* todo lo que no tenga línea es Crecé */
+ /* fyoTech: la cuenta de capacitaciones es 510501005 */
+ DB.part.forEach(k=>{if(/fyotech/i.test(String(k.soc||k.ab||''))&&(!k.cta||/definir/i.test(String(k.cta)))){k.cta='510501005';c=true;
+  (DB.fact||[]).forEach(f=>{if(f.cid===k.id&&(!f.cta||/definir/i.test(String(f.cta))))f.cta='510501005'})}});
  if(c)guardar()}
 const urlOk=v=>{v=String(v||'').trim();return v&&!/^https?:\/\//i.test(v)?'https://'+v:v};
 function abrirEncuesta(id){const p=acto(id);if(!p||!p.encuesta){toast('Esta capacitación todavía no tiene el link de la encuesta');return}window.open(p.encuesta,'_blank','noopener')}
