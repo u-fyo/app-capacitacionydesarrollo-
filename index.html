@@ -1232,8 +1232,47 @@ V.res.after=()=>{
  [['re_vn','vn'],['re_foco','foco'],['re_dict','dict'],['re_lider','lider']].forEach(([id,k])=>{
   const e=$('#'+id);if(e)e.onchange=ev=>{RE[k]=ev.target.value;refresh()}});
 };
+/* ═════════════ LÍNEAS (Conocé · Crecé · Explorá) Y OBJETIVOS DEL PRESUPUESTO ═════════════ */
+const LINEAS=['Conocé','Crecé','Explorá'];
+const CLIN={'Conocé':'#22A06B','Crecé':'#2F6FDE','Explorá':'#7C5CD6','Becas':'#E09B00','Idiomas':'#E5484D','Sin línea':'#5B6B70'};
+const linChip=p=>p&&p.linea?`<span class="chip" style="background:${CLIN[p.linea]||'#5B6B70'}22;color:${CLIN[p.linea]||'#5B6B70'};font-weight:700" title="Línea de desarrollo">${esc(p.linea)}</span>`:'';
+/* porcentaje con un decimal (0,4%): así se ve cuando es chico y se actualiza */
+const pctD=(a,b)=>!b?'—':(a/b*100).toLocaleString('es-AR',{minimumFractionDigits:1,maximumFractionDigits:1})+'%';
+const presBase=()=>partidas().reduce((a,c)=>a+(+c.base||0),0);
+/* % objetivo de cada línea: salen de la distribución del presupuesto y se pueden cambiar (se guardan en la configuración) */
+function objDefault(){
+ const D=(DB.p2627&&DB.p2627.dist)||[],f=n=>{const x=D.find(y=>y.nom===n);return x?Math.round((+x.p2627||0)*10000)/100:null};
+ return{conoce:f('CONOCÉ')??1,crece:f('CRECÉ')??79,explora:f('EXPLORÁ')??5,becas:f('BECAS')??5,idiomas:f('BENEFICIOS / IDIOMAS')??10,
+  rol:f('Rol (fichas u-fyo)')??13,blandas:f('Habilidades blandas')??37,ia:f('IA')??50,part:f('Idiomas Particulares')??60,nul:f('Idiomas Nulinga')??40}}
+function objPct(k){const d=objDefault(),C=(DB.cfg&&DB.cfg.obj)||{};return C[k]!==undefined&&C[k]!==''?+C[k]:d[k]}
+function objTodo(base){
+ const p={};['conoce','crece','explora','becas','idiomas','rol','blandas','ia','part','nul'].forEach(k=>p[k]=objPct(k));
+ const m={conoce:base*p.conoce/100,crece:base*p.crece/100,explora:base*p.explora/100,becas:base*p.becas/100,idiomas:base*p.idiomas/100};
+ m.rol=m.crece*p.rol/100;m.blandas=m.crece*p.blandas/100;m.ia=m.crece*p.ia/100;m.part=m.idiomas*p.part/100;m.nul=m.idiomas*p.nul/100;
+ /* sin cambios a mano, los montos son exactamente los de la distribución del presupuesto */
+ if(!(DB.cfg&&DB.cfg.obj)){const D=(DB.p2627&&DB.p2627.dist)||[],d=n=>{const x=D.find(y=>y.nom===n);return x?+x.m2627:null};
+  [['conoce','CONOCÉ'],['crece','CRECÉ'],['explora','EXPLORÁ'],['becas','BECAS'],['idiomas','BENEFICIOS / IDIOMAS'],['rol','Rol (fichas u-fyo)'],['blandas','Habilidades blandas'],['ia','IA'],['part','Idiomas Particulares'],['nul','Idiomas Nulinga']]
+   .forEach(([k,n])=>{const v=d(n);if(v)m[k]=v})}
+ return{p,m,base}}
+/* "3,1% del presupuesto · objetivo 5%", en verde si no se pasa del objetivo y en rojo si se pasa */
+function pctLinea(monto,k){const base=presBase(),o=objPct(k),v=base?monto/base*100:0,pasa=v>o;
+ return `<b style="color:${pasa?'var(--rojo)':'var(--verde)'}">${pctD(monto,base)}</b> del presupuesto base · objetivo ${o.toLocaleString('es-AR')}%${pasa?' · <b style="color:var(--rojo)">se pasa</b>':''}`}
+/* cada movimiento del presupuesto, con su línea */
+function detalleDatos(){
+ const S=saldos(),rows=[],FOCO={'Técnico':'Rol (fichas u-fyo)','Soft':'Habilidades blandas','IA':'IA'};
+ Object.values(S).forEach(c=>c.items.forEach(i=>{
+  const r={cid:c.id,cta:c.cta,desc:c.desc,soc:c.soc,ab:c.ab||ab(c.soc),area:c.area||'',t:i.t,nom:i.nom,m:+i.m||0,cerrado:!!i.cerrado,di:!!i.di,id:i.id,linea:'Sin línea',sub:'',tipoL:'Otros'};
+  if(i.t==='act'||i.t==='gasto'){const p=DB.plan.find(x=>x.id===i.id);
+   if(p){r.linea=p.linea||'Sin línea';r.sub=r.linea==='Crecé'?(FOCO[p.foco]||'Sin foco'):'';r.prov=p.prov;r.aid=p.id;
+    r.tipoL=i.t==='gasto'?'Gastos asociados':(p.tipo==='Coaching'?'Coaching':p.tipo==='Assessment'?'Assessment':'Capacitaciones')}}
+  else if(i.t==='beca'){r.linea='Becas';r.tipoL='Becas'}
+  else if(i.t==='idi'){r.linea='Idiomas';const f=DB.fidi.find(x=>x.id===i.id);r.sub=f&&f.profe==='Nulinga'?'Idiomas Nulinga':'Idiomas Particulares';r.prov=f&&f.profe;r.tipoL='Idiomas'}
+  else if(i.t==='comp'){const k=DB.comp.find(x=>x.id===i.id)||{};if(k.tipo==='Idioma'){r.linea='Idiomas';r.sub='Idiomas Particulares';r.tipoL='Idiomas'}else if(k.tipo==='Beca'){r.linea='Becas';r.tipoL='Becas'}}
+  rows.push(r)}));
+ return rows}
+function setLinea(id,v){const p=acto(id);if(!p)return;p.linea=v;guardar();refresh();toast(v?'Línea: '+v:'Línea quitada')}
 /* ═════════════ PLAN DEL EJERCICIO ═════════════ */
-let F={q:'',est:'',tipo:'',dict:'',foco:'',vn:'',lider:'',un:'',prov:'',presup:'',
+let F={q:'',est:'',tipo:'',dict:'',foco:'',vn:'',lider:'',un:'',prov:'',presup:'',linea:'',
  sinImp:false,sinFecha:false,sinPart:false,prox:false,mes:''};
 /* métricas del plan: inscripciones (cada persona cuenta), capacitaciones únicas (nombre + proveedor) y % de la nómina capacitada */
 function planMetricas(L){
@@ -1268,7 +1307,7 @@ V.plan=(arg)=>{
   &&(!F.vn||p.parts.some(x=>x.est!=='Baja'&&x.vn===F.vn))
   &&(!setF||p.parts.some(x=>x.est!=='Baja'&&setF.has(x.nom)))
   &&(!F.un||p.parts.some(x=>x.est!=='Baja'&&x.un===F.un))
-  &&(!F.arr||p.arrastra)&&(!F.rep||p.parts.some(x=>x.repetir&&x.est!=='Baja'))&&(!F.sinFli||(!p.fli&&!['Finalizada','Cancelada','Diferida'].includes(p.est)))&&(!F.sinImp||!p.real)&&(!F.sinFecha||!p.enc.length)&&(!F.sinPart||!activos(p).length)&&(!F.prox||p.prox)
+  &&(!F.linea||(F.linea==='Sin línea'?!p.linea:p.linea===F.linea))&&(!F.arr||p.arrastra)&&(!F.rep||p.parts.some(x=>x.repetir&&x.est!=='Baja'))&&(!F.sinFli||(!p.fli&&!['Finalizada','Cancelada','Diferida'].includes(p.est)))&&(!F.sinImp||!p.real)&&(!F.sinFecha||!p.enc.length)&&(!F.sinPart||!activos(p).length)&&(!F.prox||p.prox)
   &&(!F.q||(p.nom+' '+p.prov+' '+(p.notas||'')+' '+p.parts.map(x=>x.nom).join(' ')).toLowerCase().includes(F.q.toLowerCase())));
  const sr=L.reduce((a,p)=>a+p.real,0), sp=L.reduce((a,p)=>a+p.ppto,0);
  const pers=new Set();L.forEach(p=>activos(p).forEach(x=>pers.add(x.nom)));
@@ -1284,6 +1323,7 @@ V.plan=(arg)=>{
    return o+`<option value="sin" ${F.mes==='sin'?'selected':''}>Sin fecha (${P.filter(p=>mesesAct(p).size===0).length})</option>`})()}</select>
   <select class="fi" id="fest"><option value="">Todos los estados</option>${FASES.map(e=>`<option ${F.est===e?'selected':''}>${e}</option>`).join('')}</select>
   <select class="fi" id="ftipo"><option value="">Todos los tipos</option>${TIPOS.map(e=>`<option ${F.tipo===e?'selected':''}>${e}</option>`).join('')}</select>
+   <select class="fi" id="flin"><option value="">Todas las líneas</option>${[...LINEAS,'Sin línea'].map(e=>`<option value="${e}" ${F.linea===e?'selected':''}>${e==='Sin línea'?'Sin línea ('+P.filter(p=>!p.linea).length+')':e}</option>`).join('')}</select>
   <select class="fi" id="ffoco"><option value="">Todos los focos</option>${FOCOS.map(e=>`<option ${F.foco===e?'selected':''}>${e}</option>`).join('')}</select>
   <select class="fi" id="fdict"><option value="">Interno y externo</option><option ${F.dict==='Interno'?'selected':''}>Interno</option><option ${F.dict==='Externo'?'selected':''}>Externo</option></select>
   <select class="fi" id="fvn"><option value="">Todas las verticales</option>${VERTS.map(e=>`<option ${F.vn===e?'selected':''}>${e}</option>`).join('')}</select>
@@ -1291,7 +1331,7 @@ V.plan=(arg)=>{
   <select class="fi" id="fun"><option value="">Todas las áreas</option>${unis.map(e=>`<option ${F.un===e?'selected':''}>${esc(e)}</option>`).join('')}</select>
   <select class="fi" id="fprov"><option value="">Todos los proveedores</option>${provs.map(e=>`<option ${F.prov===e?'selected':''}>${esc(e)}</option>`).join('')}</select>
   <select class="fi" id="fpre"><option value="">Dentro y fuera de presupuesto</option><option value="Dentro" ${F.presup==='Dentro'?'selected':''}>Dentro</option><option value="Fuera" ${F.presup==='Fuera'?'selected':''}>Fuera de presupuesto</option></select>
-  <button class="btn n" onclick="F={q:'',est:'',tipo:'',dict:'',foco:'',vn:'',lider:'',un:'',prov:'',presup:'',sinImp:false,sinFecha:false,sinPart:false,prox:false,mes:''};refresh()">Limpiar todo</button>
+  <button class="btn n" onclick="F={q:'',est:'',tipo:'',dict:'',foco:'',vn:'',lider:'',un:'',prov:'',presup:'',linea:'',sinImp:false,sinFecha:false,sinPart:false,prox:false,mes:''};refresh()">Limpiar todo</button>
  </div>
 
  ${rec?`<div class="aviso"><b>Filtrado por ${[F.vn&&'vertical '+esc(F.vn),F.lider&&'líder '+esc(F.lider),F.un&&'área '+esc(F.un)].filter(Boolean).join(' · ')}.</b>
@@ -1303,6 +1343,8 @@ V.plan=(arg)=>{
   ${['Sin iniciar','En curso','Finalizada'].map(e=>{const n=P.filter(p=>estFiltro(p,e)).length;
    return `<button class="cb ${F.est===e?'on':''}" style="--cbc:${CESTC[e]}" onclick="F.est='${e}';refresh()">
     <i style="background:${CESTC[e]}"></i>${e==='Finalizada'?'Finalizado':e} <b>${n}</b></button>`}).join('')}
+  ${LINEAS.map(l=>{const n=P.filter(p=>p.linea===l).length;return n?`<button class="cb ${F.linea===l?'on':''}" style="--cbc:${CLIN[l]}" onclick="F.linea=F.linea==='${l}'?'':'${l}';refresh()"><i style="background:${CLIN[l]}"></i>${l} <b>${n}</b></button>`:''}).join('')}
+  ${(()=>{const n=P.filter(p=>!p.linea).length;return n?`<button class="cb ${F.linea==='Sin línea'?'on':''}" style="--cbc:#5B6B70" title="Capacitaciones que todavía no tienen línea (Conocé, Crecé o Explorá)" onclick="F.linea=F.linea==='Sin línea'?'':'Sin línea';refresh()"><i style="background:#5B6B70"></i>Sin línea <b>${n}</b></button>`:''})()}
   ${(()=>{const n=P.filter(p=>p.arrastra).length;return n?`<button class="cb ${F.arr?'on':''}" style="--cbc:#7C5CD6" onclick="F.arr=!F.arr;refresh()"><i style="background:#7C5CD6"></i>↩ Arrastran del ej. pasado <b>${n}</b></button>`:''})()}
   ${(()=>{const n=P.filter(p=>p.parts.some(x=>x.repetir&&x.est!=='Baja')).length;return n?`<button class="cb ${F.rep?'on':''}" style="--cbc:#7C5CD6" title="Capacitaciones donde quedó gente para otra edición o para el próximo ejercicio" onclick="F.rep=!F.rep;refresh()"><i style="background:#7C5CD6"></i>↻ Gente para repetir <b>${n}</b></button>`:''})()}
   ${(()=>{const n=P.filter(p=>!p.fli&&!['Finalizada','Cancelada','Diferida'].includes(p.est)).length;return `<button class="cb ${F.sinFli?'on':''}" style="--cbc:#E09B00" title="Capacitaciones a las que todavía no se mandó la invitación (sin fecha de inscripción), aunque ya tengan fecha de inicio" onclick="F.sinFli=!F.sinFli;refresh()"><i style="background:#E09B00"></i>📨 Sin fecha de inscripción <b>${n}</b></button>`})()}
@@ -1320,7 +1362,7 @@ V.plan=(arg)=>{
    const fx=actFechas(p),fs=fx.ini?(fx.fin&&fx.fin!==fx.ini?fecha(fx.ini)+' → '+fecha(fx.fin):fecha(fx.ini)):'<span class="chip c-gris">Por definir</span>';
    const m=p.real||p.ppto||0,nros=[...DB.fact.filter(x=>x.aid===p.id&&x.nro).map(x=>x.nro),...(p.gastos||[]).filter(g=>g.nro).map(g=>g.nro)];
    return `<tr class="clic" onclick="ir('act','${p.id}')">
-   <td><div class="nom">${esc(p.nom)} ${p.arrastra?'<span class="chip c-dif" title="Venía del ejercicio anterior y quedó pendiente">↩ Arrastra del ej. pasado</span> ':''}${p.presup==='Fuera'?`<span class="chip c-fue" title="Decisión de inversión${p.aprob?' · aprobó '+esc(p.aprob):''}">DI</span>`:''}</div>
+   <td><div class="nom">${esc(p.nom)} ${linChip(p)}${p.arrastra?'<span class="chip c-dif" title="Venía del ejercicio anterior y quedó pendiente">↩ Arrastra del ej. pasado</span> ':''}${p.presup==='Fuera'?`<span class="chip c-fue" title="Decisión de inversión${p.aprob?' · aprobó '+esc(p.aprob):''}">DI</span>`:''}</div>
     <div class="sub2">${p.dict==='Interno'?'Interna':'Externa'}${p.accion?' · '+esc(p.accion.slice(0,54)):''}</div></td>
    <td><span class="chip c-gris">${esc(p.tipo)}${p.sub?' · '+esc(p.sub):''}</span></td>
    <td class="sub2">${esc(p.prov||'—')}</td>
@@ -1342,7 +1384,7 @@ V.plan.after=()=>{
  const q=$('#fq');if(!q)return;
  q.oninput=e=>{F.q=e.target.value;clearTimeout(window._t);window._t=setTimeout(()=>{refresh();
   const i=$('#fq');i.focus();i.setSelectionRange(i.value.length,i.value.length)},250)};
- [['fmes','mes'],['fest','est'],['ftipo','tipo'],['ffoco','foco'],['fdict','dict'],['fvn','vn'],['flid','lider'],
+ [['fmes','mes'],['fest','est'],['ftipo','tipo'],['flin','linea'],['ffoco','foco'],['fdict','dict'],['fvn','vn'],['flid','lider'],
   ['fun','un'],['fprov','prov'],['fpre','presup']].forEach(([id,k])=>{
   const el=$('#'+id);if(el)el.onchange=e=>{F[k]=e.target.value;refresh()}});
 };
@@ -1375,7 +1417,7 @@ V.act=(id)=>{
  <div class="head hero"><div class="headrow"><div>
    <div class="eyebrow">${esc(p.tipo)} · ejercicio ${p.ej} · ${p.id}</div>
    <h1>${esc(p.nom)}</h1>
-   <div class="chips" style="margin-top:9px">${chip(p.est)}${p.arrastra?'<span class="chip c-dif" title="Venía del ejercicio anterior y quedó pendiente">↩ Arrastra del ej. pasado</span>':''}${tieneAsis(p)?`<span class="chip c-cur" title="Promedio de asistencia sobre los encuentros de cada persona">Asistencia ${asisProm(p)}%</span>`:''}${p.sub?`<span class="chip c-cur">${esc(p.sub)}</span>`:''}
+   <div class="chips" style="margin-top:9px">${chip(p.est)}${linChip(p)}${p.arrastra?'<span class="chip c-dif" title="Venía del ejercicio anterior y quedó pendiente">↩ Arrastra del ej. pasado</span>':''}${tieneAsis(p)?`<span class="chip c-cur" title="Promedio de asistencia sobre los encuentros de cada persona">Asistencia ${asisProm(p)}%</span>`:''}${p.sub?`<span class="chip c-cur">${esc(p.sub)}</span>`:''}
     ${fchip(p.foco)}<span class="chip ${p.dict==='Interno'?'c-int':'c-ext'}">${p.dict==='Interno'?'La dictamos nosotros':'Proveedor externo'}</span>
     ${p.presup==='Fuera'?'<span class="chip c-fue">Fuera de presupuesto</span>':'<span class="chip c-gris">Dentro del presupuesto</span>'}
     <span class="chip c-gris">${esc(p.prov)}</span></div></div>
@@ -1416,6 +1458,7 @@ function fiDatos(p){
    <div class="f"><label>Proveedor o institución</label><input id="e_prov" value="${esc(p.prov)}" list="dlProvF"></div>
    <div class="f"><label>Tipo</label><select id="e_tipo">${TIPOS.map(t=>`<option ${p.tipo===t?'selected':''}>${t}</option>`).join('')}</select></div>
    <div class="f"><label>Foco</label><select id="e_foco">${FOCOS.map(t=>`<option ${p.foco===t?'selected':''}>${t}</option>`).join('')}</select></div>
+   <div class="f"><label>Línea (Conocé · Crecé · Explorá)</label><select id="e_lin"><option value="">Sin línea</option>${LINEAS.map(t=>`<option ${p.linea===t?'selected':''}>${t}</option>`).join('')}</select></div>
    <div class="f"><label>Quién la dicta</label><select id="e_dict"><option ${p.dict==='Externo'?'selected':''}>Externo</option><option ${p.dict==='Interno'?'selected':''}>Interno</option></select></div>
    <div class="f"><label>Alcance</label><select id="e_alc"><option ${p.alc==='Individual'?'selected':''}>Individual</option><option ${p.alc!=='Individual'?'selected':''}>Equipo</option></select></div>
    ${p.tipo==='Coaching'||p.tipo==='Assessment'?`<div class="f"><label>Es un</label><select id="e_sub"><option value="">—</option>${SUBS.map(t=>`<option ${p.sub===t?'selected':''}>${t}</option>`).join('')}</select></div>`:''}
@@ -1468,6 +1511,7 @@ function guardarAct(id){
  if(p.real>0&&!p.alta&&p.real!==antesReal)p.alta=HOY;
  if(!p.enc.length&&document.getElementById('e_ini'))Object.assign(p,{ini:g('e_ini'),fin:g('e_fin')});
  if(document.getElementById('e_sub'))p.sub=g('e_sub');
+ if(document.getElementById('e_lin'))p.linea=g('e_lin');
  syncEstadosAct();
  if(p.prov&&!DB.prov.some(x=>x.nom===p.prov))
   DB.prov.push({id:uid('P'),nom:p.prov,tipos:[p.tipo],mail:'',tel:'',cuit:'',contacto:'',notas:''});
@@ -1521,7 +1565,7 @@ function masivo(que){
   &&(!F.vn||p.parts.some(x=>x.est!=='Baja'&&x.vn===F.vn))
   &&(!setF||p.parts.some(x=>x.est!=='Baja'&&setF.has(x.nom)))
   &&(!F.un||p.parts.some(x=>x.est!=='Baja'&&x.un===F.un))
-  &&(!F.arr||p.arrastra)&&(!F.rep||p.parts.some(x=>x.repetir&&x.est!=='Baja'))&&(!F.sinFli||(!p.fli&&!['Finalizada','Cancelada','Diferida'].includes(p.est)))&&(!F.sinImp||!p.real)&&(!F.sinFecha||!p.enc.length)&&(!F.sinPart||!activos(p).length)&&(!F.prox||p.prox)
+  &&(!F.linea||(F.linea==='Sin línea'?!p.linea:p.linea===F.linea))&&(!F.arr||p.arrastra)&&(!F.rep||p.parts.some(x=>x.repetir&&x.est!=='Baja'))&&(!F.sinFli||(!p.fli&&!['Finalizada','Cancelada','Diferida'].includes(p.est)))&&(!F.sinImp||!p.real)&&(!F.sinFecha||!p.enc.length)&&(!F.sinPart||!activos(p).length)&&(!F.prox||p.prox)
   &&(!F.q||(p.nom+' '+p.prov).toLowerCase().includes(F.q.toLowerCase())));
  if(!L.length){toast('No hay filas listadas');return}
  const txt={prox:`marcar las <b>${L.length}</b> actividades listadas para el ${sigEj(EJ)}`,
@@ -2089,6 +2133,8 @@ function formAlta(k){
   ${esCoa?`<div class="f"><label>Es un</label><select id="a_sub">${SUBS.map(t=>`<option>${t}</option>`).join('')}</select></div>`
    :`<div class="f"><label>Tipo</label><select id="a_tipo">${TIPOS.map(t=>`<option>${t}</option>`).join('')}</select></div>`}
   <div class="f"><label>Foco</label><select id="a_foco">${FOCOS.map(t=>`<option>${t}</option>`).join('')}</select></div>
+  <div class="f"><label>Línea (Conocé · Crecé · Explorá)</label><select id="a_lin"><option value="">Elegí la línea…</option>${LINEAS.map(t=>`<option>${t}</option>`).join('')}</select>
+   <div class="hint">Define de qué parte del presupuesto sale.</div></div>
   <div class="f"><label>Monto · lo que pagamos</label><input class="money" type="text" inputmode="numeric" id="a_ppto" value="0"></div>
   ${esCoa?`<div class="f"><label>Fecha de inicio</label><input type="date" id="a_ini"></div>
    <div class="f"><label>Fecha de finalización</label><input type="date" id="a_fin"></div>`
@@ -2123,12 +2169,13 @@ function crear(k){
  const g=i=>{const e=document.getElementById(i);return e?e.value:''};
  const nom=g('a_nom').trim();
  if(!nom){toast('Poné el nombre');document.getElementById('a_nom').focus();return}
+ if(!g('a_lin')){toast('Elegí la línea: Conocé, Crecé o Explorá');document.getElementById('a_lin').focus();return}
  if(g('a_pre')==='Fuera'&&!g('a_aprob').trim()){toast('Es una decisión de inversión: poné quién la aprobó');document.getElementById('a_aprob').focus();return}
  const enc=(k==='int'?FECHAS.filter(f=>f.fecha):[]).map((f,i)=>({id:uid('E'),fecha:f.fecha,hora:'',dur:0,
   tit:nom+(FECHAS.filter(x=>x.fecha).length>1?' · Encuentro '+(i+1):''),lugar:''}));
  const p={id:uid('X'),ej:EJ,nom,prov:g('a_prov').trim()||'A definir',
   tipo:k==='coa'?(g('a_sub')==='Coaching'?'Coaching':'Assessment'):g('a_tipo'),
-  sub:k==='coa'?g('a_sub'):'',dict:k==='int'?'Interno':'Externo',foco:g('a_foco'),alc:'Equipo',
+  sub:k==='coa'?g('a_sub'):'',dict:k==='int'?'Interno':'Externo',foco:g('a_foco'),linea:g('a_lin'),alc:'Equipo',
   est:'Pendiente',presup:g('a_pre'),aprob:g('a_pre')==='Fuera'?g('a_aprob').trim():'',faprob:g('a_pre')==='Fuera'?(g('a_faprob')||HOY):'',fli:g('a_fli'),fest:'',
   freal:'',ini:g('a_ini'),fin:g('a_fin'),ppto:+g('a_ppto')||0,real:+g('a_ppto')||0,carg:'Micaela',motivo:'',prox:false,
   hs:'',notas:'',accion:'',chk:[],docs:[],gastos:[],parts:[],enc,asis:{},alta:HOY};
@@ -2426,7 +2473,8 @@ function becasMetricas(){
  return `
  <div class="mets">
   ${metOn('Becas activas',act.total,`${act.nuevas} nueva${act.nuevas===1?'':'s'} de ${EJ} · ${act.continuan} arrastran del ejercicio anterior · tocá para ver quiénes`,'met-tot',"becasActivasVer()")}
-  ${metOn('Comprometido en becas · '+EJ,plata(cTot),`<div style="line-height:1.55">↩ Becas del ${ejAnt}: <b>${plata(cArr)}</b><br>🆕 Becas nuevas ${EJ}: <b>${plata(cNue)}</b><br><span style="opacity:.8">de noviembre a octubre inclusive · tocá para ver el detalle</span></div>`,'met-eje cel',"becasComprometidoVer()")}
+  ${met('Para gastar en becas · '+EJ,plata(objTodo(presBase()).m.becas),`<b>${objPct('becas').toLocaleString('es-AR')}%</b> del presupuesto base (${plata(presBase())}) · es lo que tenemos disponible para becas`,'met-tot')}
+  ${metOn('Comprometido en becas · '+EJ,plata(cTot),`<div style="line-height:1.55">${pctLinea(cTot,'becas')}<br>↩ Becas del ${ejAnt}: <b>${plata(cArr)}</b><br>🆕 Becas nuevas ${EJ}: <b>${plata(cNue)}</b><br><span style="opacity:.8">de noviembre a octubre inclusive · tocá para ver el detalle</span></div>`,cTot/(presBase()||1)*100>objPct('becas')?'met-exc mal':'met-eje cel',"becasComprometidoVer()")}
   ${met('Pagado en becas · '+EJ,plata(pagTot),pagTot?'ya pagado de lo comprometido':'todavía no se pagó nada de este ejercicio','met-per')}
   ${met('Por pagar hasta cierre '+EJ,plata(porPag),`provisión: hasta lo que se paga en ${mesTxt(ultimoMes)} (inclusive) · baja a medida que se va pagando`,'met-fue warn')}
  </div>
@@ -3096,9 +3144,10 @@ function paneFidi(){
  const variacion=(ultimoMes&&anteUltimoMes)?variacionMensualIdiomas(ultimoMes,anteUltimoMes):null;
  return `
  <div class="mets">
-  ${metOn('Total idiomas '+EJ,plata(totalEj),
-   presupuestoTotal?`${pct(totalEj,presupuestoTotal)}% del presupuesto base del ejercicio (${plata(presupuestoTotal)}) · tocá para ver el detalle`:'tocá para ver el detalle por profe y sociedad',
-   'met-tot cel',`verTotalIdiomas()`)}
+  ${(()=>{const O=objTodo(presBase()),E=DB.fidi.filter(f=>f.ej===EJ),gNul=E.filter(f=>f.profe==='Nulinga').reduce((a,f)=>a+f.monto,0),gPar=E.reduce((a,f)=>a+f.monto,0)-gNul,gTot=gPar+gNul;
+      const col=(g,o)=>`<b style="color:${g>o?'var(--rojo)':'var(--verde)'}">${plata(g)}</b>`;
+      return `${met('Para gastar en idiomas · '+EJ,plata(O.m.idiomas),`<b>${objPct('idiomas').toLocaleString('es-AR')}%</b> del presupuesto base (${plata(O.base)})<br>Particulares (${objPct('part')}%): <b>${plata(O.m.part)}</b><br>Nulinga (${objPct('nul')}%): <b>${plata(O.m.nul)}</b>`,'met-tot')}
+      ${metOn('Llevamos gastado en idiomas · '+EJ,plata(gTot),`${pctLinea(gTot,'idiomas')}<br>Particulares: ${col(gPar,O.m.part)} de ${plata(O.m.part)} (${pctD(gPar,O.m.part)})<br>Nulinga: ${col(gNul,O.m.nul)} de ${plata(O.m.nul)} (${pctD(gNul,O.m.nul)})<br><span style="opacity:.8">tocá para ver el detalle por profe y sociedad</span>`,gTot>O.m.idiomas?'met-exc mal':'met-eje cel',`verTotalIdiomas()`)}`})()}
   ${(()=>{const per=DB.fidi.filter(f=>f.mes===LG.mesA),tot=per.reduce((a,f)=>a+f.monto,0),ant=DB.fidi.filter(f=>f.mes===addMes(LG.mesA,-1)).reduce((a,f)=>a+f.monto,0),d=ant?Math.round((tot-ant)/ant*100):null;
    return met('Total de '+mesTxt(LG.mesA),per.length?plata(tot):'—',per.length?`${per.length} factura${per.length===1?'':'s'}${d!==null?` · ${d>0?'▲ +':d<0?'▼ ':'= '}${d}% vs ${mesTxt(addMes(LG.mesA,-1))}`:''}`:'todavía sin facturas cargadas','met-per')})()}
  </div>
@@ -3642,6 +3691,120 @@ V.pres.after=(arg)=>{
   d.ondrop=e=>{e.preventDefault();d.classList.remove('dr');if(e.dataTransfer.files[0])leerGestion(e.dataTransfer.files[0])};
   f.onchange=e=>{if(e.target.files[0])leerGestion(e.target.files[0])}}
 };
+/* ═════════════ Presupuesto › Detalle por línea (Conocé · Crecé · Explorá · Becas · Idiomas) ═════════════ */
+let PRS={sub:0},PRD={soc:'',cid:'',area:'',tipo:'',est:'',lin:'',cruce:'soc'};
+const prdSet=(k,v)=>{PRD[k]=v;refresh()};
+function prdFiltro(r){return !r.di&&(!PRD.soc||r.soc===PRD.soc)&&(!PRD.cid||r.cid===PRD.cid)&&(!PRD.area||r.area===PRD.area)&&(!PRD.tipo||r.tipoL===PRD.tipo)&&(!PRD.est||(PRD.est==='ej'?r.cerrado:!r.cerrado))&&(!PRD.lin||r.linea===PRD.lin)}
+function objEditar(){
+ const K=[['conoce','Conocé'],['crece','Crecé'],['explora','Explorá'],['becas','Becas'],['idiomas','Beneficios / Idiomas']],S=[['rol','Rol (fichas u-fyo)'],['blandas','Habilidades blandas'],['ia','IA']],I=[['part','Idiomas Particulares'],['nul','Idiomas Nulinga']];
+ const inp=([k,n])=>`<div class="f"><label>${n}</label><input type="number" step="0.5" min="0" max="100" id="ob_${k}" value="${objPct(k)}" oninput="objSuma()"></div>`;
+ modal(cab('Objetivos del presupuesto','Qué % del presupuesto base le corresponde a cada línea')+`<div class="mdl-b">
+  <div style="font-weight:600;margin-bottom:6px">Líneas <span class="sub2" id="ob_s1"></span></div><div class="form">${K.map(inp).join('')}</div>
+  <div style="font-weight:600;margin:16px 0 6px">Dentro de Crecé (% de Crecé) <span class="sub2" id="ob_s2"></span></div><div class="form">${S.map(inp).join('')}</div>
+  <div style="font-weight:600;margin:16px 0 6px">Dentro de Idiomas (% de Idiomas) <span class="sub2" id="ob_s3"></span></div><div class="form">${I.map(inp).join('')}</div>
+  <div class="hint" style="margin-top:12px">Vienen de la distribución del presupuesto ${EJ}. Si los cambiás, se usan en todas las tarjetas y alertas.</div>
+  <div class="acts"><button class="btn" onclick="objGuardar()">Guardar</button><button class="btn n" onclick="objRestaurar()">Volver a los del plan</button><button class="btn n" onclick="cerrar()">Cancelar</button></div></div>`,'lg');
+ objSuma()}
+function objSuma(){const v=k=>+(document.getElementById('ob_'+k)||{}).value||0,t=(a,id)=>{const x=a.reduce((s,k)=>s+v(k),0),e=document.getElementById(id);if(e){e.textContent='suma '+(Math.round(x*100)/100)+'%'+(Math.abs(x-100)<.01?' ✓':' · tiene que dar 100');e.style.color=Math.abs(x-100)<.01?'var(--verde)':'var(--rojo)'}return x};
+ t(['conoce','crece','explora','becas','idiomas'],'ob_s1');t(['rol','blandas','ia'],'ob_s2');t(['part','nul'],'ob_s3')}
+function objGuardar(){const v=k=>+(document.getElementById('ob_'+k)||{}).value||0,ok=a=>Math.abs(a.reduce((s,k)=>s+v(k),0)-100)<.01;
+ if(!ok(['conoce','crece','explora','becas','idiomas'])||!ok(['rol','blandas','ia'])||!ok(['part','nul'])){toast('Cada grupo tiene que sumar 100%');return}
+ DB.cfg.obj={};['conoce','crece','explora','becas','idiomas','rol','blandas','ia','part','nul'].forEach(k=>DB.cfg.obj[k]=v(k));guardar();cerrar();refresh();toast('Objetivos guardados')}
+function objRestaurar(){delete DB.cfg.obj;guardar();cerrar();refresh();toast('Objetivos del plan restaurados')}
+function presDetalle(tabs){
+ const base=presBase(),O=objTodo(base),ALL=detalleDatos(),R=ALL.filter(prdFiltro),fuera=ALL.filter(r=>r.di&&r.cerrado).reduce((a,r)=>a+r.m,0);
+ const sm=(L,ej)=>L.filter(r=>ej?r.cerrado:!r.cerrado).reduce((a,r)=>a+r.m,0),hay=['soc','cid','area','tipo','est','lin'].some(k=>PRD[k]);
+ const CATS=[
+  {n:'Conocé',p:O.p.conoce,o:O.m.conoce,f:r=>r.linea==='Conocé',c:CLIN['Conocé']},
+  {n:'Crecé',p:O.p.crece,o:O.m.crece,f:r=>r.linea==='Crecé',c:CLIN['Crecé'],subs:[
+   {n:'Rol (fichas u-fyo)',p:O.p.rol,o:O.m.rol,f:r=>r.linea==='Crecé'&&r.sub==='Rol (fichas u-fyo)'},
+   {n:'Habilidades blandas',p:O.p.blandas,o:O.m.blandas,f:r=>r.linea==='Crecé'&&r.sub==='Habilidades blandas'},
+   {n:'IA',p:O.p.ia,o:O.m.ia,f:r=>r.linea==='Crecé'&&r.sub==='IA'}]},
+  {n:'Explorá',p:O.p.explora,o:O.m.explora,f:r=>r.linea==='Explorá',c:CLIN['Explorá']},
+  {n:'Becas',p:O.p.becas,o:O.m.becas,f:r=>r.linea==='Becas',c:CLIN['Becas']},
+  {n:'Idiomas',p:O.p.idiomas,o:O.m.idiomas,f:r=>r.linea==='Idiomas',c:CLIN['Idiomas'],subs:[
+   {n:'Idiomas Particulares',p:O.p.part,o:O.m.part,f:r=>r.linea==='Idiomas'&&r.sub==='Idiomas Particulares'},
+   {n:'Idiomas Nulinga',p:O.p.nul,o:O.m.nul,f:r=>r.linea==='Idiomas'&&r.sub==='Idiomas Nulinga'}]},
+  {n:'Sin línea',noObj:true,f:r=>r.linea==='Sin línea',c:CLIN['Sin línea']}];
+ const filaH=(c,esSub,padre)=>{const L=R.filter(c.f),ej=sm(L,true),com=sm(L,false),ll=ej+com;
+  if(c.noObj&&!(ej+com))return '';
+  const pasa=!c.noObj&&c.o>0&&ll>c.o+.5,col=c.noObj?'var(--gris)':(pasa?'var(--rojo)':'var(--verde)'),uso=c.o?ll/c.o*100:0;
+  return `<tr style="${esSub?'':'background:var(--niebla)'}"><td class="nom" style="${esSub?'padding-left:30px;font-weight:500':'font-weight:700'}">${!esSub&&c.c?`<span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${c.c};margin-right:8px"></span>`:''}${esc(c.n)}${esSub?`<span class="sub2"> · ${c.p.toLocaleString('es-AR')}% de ${padre}</span>`:''}</td>
+   <td class="r num">${c.noObj?'—':pctD(c.o,base)}</td><td class="r num">${c.noObj?'—':plata(c.o)}</td>
+   <td class="r num">${ej?plata(ej):'—'}</td><td class="r num">${com?plata(com):'—'}</td><td class="r num" style="font-weight:700">${ll?plata(ll):'—'}</td>
+   <td class="r num" style="color:${col};font-weight:700">${ll?pctD(ll,base):'—'}${pasa?' <span class="chip c-can">se pasa</span>':''}</td>
+   <td style="min-width:110px">${c.noObj?'':`<div style="background:var(--linea);border-radius:5px;height:8px;overflow:hidden"><div style="width:${Math.min(100,uso)}%;height:100%;background:${pasa?'var(--rojo)':'var(--verde)'}"></div></div><div class="sub2 num" style="font-size:11px">${uso.toLocaleString('es-AR',{maximumFractionDigits:1})}% del objetivo</div>`}</td>
+   <td class="r num" style="color:${c.noObj?'inherit':(c.o-ll<0?'var(--rojo)':'var(--verde)')}">${c.noObj?'—':(c.o-ll<0?'−':'')+plata(Math.abs(c.o-ll))}</td></tr>`};
+ const lineasSinObj=CATS.filter(c=>c.noObj),tot=CATS.filter(c=>!c.noObj),
+  ejT=sm(R,true),comT=sm(R,false),pasan=[...tot,...tot.flatMap(c=>c.subs||[])].filter(c=>{const L=R.filter(c.f),ll=sm(L,true)+sm(L,false);return c.o>0&&ll>c.o+.5}),
+  sinL=R.filter(r=>r.linea==='Sin línea').reduce((a,r)=>a+r.m,0),pSin=vivas().filter(p=>!p.linea);
+ /* filtros */
+ const uniq=f=>[...new Set(ALL.filter(r=>!r.di).map(f).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),'es'));
+ const sel=(k,lbl,opts)=>`<select class="fi" onchange="prdSet('${k}',this.value)"><option value="">${lbl}</option>${opts.map(([v,t])=>`<option value="${esc(v)}" ${PRD[k]===v?'selected':''}>${esc(t)}</option>`).join('')}</select>`;
+ /* cruces */
+ const DIMS={soc:['Sociedad',r=>r.ab||r.soc||'—'],cid:['Cuenta',r=>(r.desc||r.cta||'—')+(r.ab?' · '+r.ab:'')],area:['Vertical / área',r=>r.area||'—'],tipo:['Tipo de gasto',r=>r.tipoL],est:['Estado',r=>r.cerrado?'Ejecutado':'Comprometido']};
+ const [dn,df]=DIMS[PRD.cruce]||DIMS.soc,porCol={};R.forEach(r=>{const k=df(r);porCol[k]=(porCol[k]||0)+r.m});
+ let cols=Object.entries(porCol).sort((a,b)=>b[1]-a[1]).map(x=>x[0]);const MAXC=9,otros=cols.length>MAXC?cols.slice(MAXC):[];cols=cols.slice(0,MAXC);
+ const filasPiv=[];CATS.forEach(c=>{filasPiv.push([c.n,c.f,false,c.c]);(c.subs||[]).forEach(x=>filasPiv.push([x.n,x.f,true]))});
+ const cel=(f,key)=>R.filter(r=>f(r)&&(key==='__otros'?otros.includes(df(r)):df(r)===key)).reduce((a,r)=>a+r.m,0);
+ const heads=[...cols,...(otros.length?['__otros']:[])];
+ const pivote=filasPiv.map(([n,f,sub,c])=>{const vs=heads.map(k=>cel(f,k)),t=vs.reduce((a,x)=>a+x,0);if(!t&&(sub||n==='Sin línea'))return '';
+  return `<tr style="${sub?'':'background:var(--niebla)'}"><td class="nom" style="${sub?'padding-left:30px;font-weight:500':'font-weight:700'}">${esc(n)}</td>${vs.map(v=>`<td class="r num">${v?platak(v):'—'}</td>`).join('')}<td class="r num" style="font-weight:700">${t?platak(t):'—'}</td></tr>`}).join('');
+ const totCol=heads.map(k=>R.filter(r=>k==='__otros'?otros.includes(df(r)):df(r)===k).reduce((a,r)=>a+r.m,0));
+ const mov=R.slice().sort((a,b)=>b.m-a.m).slice(0,120);
+ return `
+ <div class="head"><div class="headrow"><div><div class="eyebrow">Ejercicio ${EJ}</div>
+  <h1>Presupuesto <span class="par">(</span> ${EJ} <span class="par">)</span></h1>
+  <div class="sub">Cuánto se fue ejecutando de cada línea y cuánto nos queda. Sale de lo que cargás en cada capacitación (su línea), en idiomas y en becas.</div></div>
+  <button class="btn g" onclick="objEditar()">Editar objetivos</button></div></div>
+ ${tabs}
+ <div class="mets">
+  ${met('Presupuesto base',plata(base),'sobre este total se calculan los porcentajes','met-tot')}
+  ${met('Llevamos ejecutado',plata(ejT),hay?'del recorte elegido':'ya con N° de factura / pagado','met-eje')}
+  ${met('Comprometido sin factura',plata(comT),'cargado pero todavía sin N° de factura','met-per')}
+  ${pasan.length?met('Se pasan del objetivo',pasan.length,pasan.map(c=>esc(c.n)).join(' · ')+' · llevan más de lo previsto','met-exc mal'):met('Líneas dentro del objetivo','✓','ninguna se pasa de su % del presupuesto','met-dis ok')}
+  ${pSin.length?met('Sin línea',plata(sinL),`${pSin.length} capacitación${pSin.length===1?'':'es'} sin línea: elegí Conocé, Crecé o Explorá`,'met-fue warn'):''}
+ </div>
+ <div class="filtros" style="margin-top:14px"><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+  <span class="sub2" style="font-weight:600">Filtrar</span>
+  ${sel('lin','Todas las líneas',[...ORDLIN().map(x=>[x,x])])}
+  ${sel('soc','Todas las sociedades',uniq(r=>r.soc).map(x=>[x,x]))}
+  ${sel('cid','Todas las cuentas',partidas().map(c=>[c.id,(c.ab||'')+' · '+c.desc]))}
+  ${sel('area','Todas las verticales',uniq(r=>r.area).map(x=>[x,x]))}
+  ${sel('tipo','Todos los tipos de gasto',uniq(r=>r.tipoL).map(x=>[x,x]))}
+  ${sel('est','Ejecutado y comprometido',[['ej','Solo ejecutado'],['com','Solo comprometido']])}
+  <button class="btn n s" onclick="PRD={soc:'',cid:'',area:'',tipo:'',est:'',lin:'',cruce:PRD.cruce};refresh()">Limpiar</button></div></div>
+ ${hay?`<div class="aviso" style="margin-top:12px"><b>Recorte activo.</b> Los montos son solo del recorte elegido; el objetivo sigue siendo el total de cada línea (por eso los % son lo que ese recorte aporta a la línea).</div>`:''}
+ <div class="card" style="margin-top:14px"><div class="card-h"><h2>Por línea: objetivo y lo que llevamos</h2><div class="n">las DI van aparte${fuera?` (${plata(fuera)} ejecutados fuera de presupuesto)`:''}</div></div>
+  <div class="card-b flush"><div class="scroll"><table>
+   <thead><tr><th>Línea</th><th class="r">Objetivo %</th><th class="r">Objetivo $</th><th class="r">Ejecutado</th><th class="r">Comprometido</th><th class="r">Llevado</th><th class="r">% del presupuesto</th><th>Uso del objetivo</th><th class="r">Disponible</th></tr></thead>
+   <tbody>${CATS.map(c=>filaH(c,false)+(c.subs||[]).map(x=>filaH(x,true,c.n)).join('')).join('')}</tbody>
+   <tfoot><tr><td>Total</td><td class="r num">${pctD(tot.reduce((a,c)=>a+c.o,0),base)}</td><td class="r num">${plata(tot.reduce((a,c)=>a+c.o,0))}</td><td class="r num">${plata(ejT)}</td><td class="r num">${plata(comT)}</td><td class="r num">${plata(ejT+comT)}</td><td class="r num">${pctD(ejT+comT,base)}</td><td></td><td></td></tr></tfoot>
+  </table></div></div></div>
+ <div class="card" style="margin-top:14px"><div class="card-h"><h2>Cruces</h2><div class="n" style="display:flex;gap:8px;align-items:center">líneas por <select class="fi" onchange="prdSet('cruce',this.value)">${Object.entries(DIMS).map(([k,v])=>`<option value="${k}" ${PRD.cruce===k?'selected':''}>${v[0]}</option>`).join('')}</select></div></div>
+  <div class="card-b flush"><div class="scroll"><table>
+   <thead><tr><th>Línea</th>${heads.map(k=>`<th class="r">${k==='__otros'?'Otros ('+otros.length+')':esc(k)}</th>`).join('')}<th class="r">Total</th></tr></thead>
+   <tbody>${pivote||`<tr><td colspan="${heads.length+2}"><div class="vacio">No hay movimientos para este recorte.</div></td></tr>`}</tbody>
+   <tfoot><tr><td>Total</td>${totCol.map(v=>`<td class="r num">${v?platak(v):'—'}</td>`).join('')}<td class="r num">${platak(ejT+comT)}</td></tr></tfoot>
+  </table></div></div></div>
+ ${pSin.length?`<div class="card" style="margin-top:14px"><div class="card-h"><h2>Capacitaciones sin línea</h2><div class="n">${pSin.length} · elegí a cuál pertenece cada una</div></div>
+  <div class="card-b flush"><div class="scroll" style="max-height:340px"><table><thead><tr><th>Capacitación</th><th>Proveedor</th><th class="r">Monto</th><th>Línea</th></tr></thead>
+   <tbody>${pSin.slice(0,60).map(p=>`<tr><td class="nom"><a href="#" onclick="ir('act','${p.id}');return false">${esc(p.nom)}</a></td><td class="sub2">${esc(p.prov||'—')}</td><td class="r num">${(p.real||p.ppto)?plata(p.real||p.ppto):'—'}</td>
+    <td><select class="fi" onchange="setLinea('${p.id}',this.value)"><option value="">Elegí…</option>${LINEAS.map(l=>`<option>${l}</option>`).join('')}</select></td></tr>`).join('')}</tbody></table></div></div></div>`:''}
+ <div class="card" style="margin-top:14px"><div class="card-h"><h2>Movimientos</h2><div class="n">${R.length} · los ${Math.min(120,R.length)} más grandes</div></div>
+  <div class="card-b flush"><div class="scroll" style="max-height:420px"><table><thead><tr><th>Línea</th><th>Concepto</th><th>Cuenta</th><th>Estado</th><th class="r">Monto</th></tr></thead>
+   <tbody>${mov.length?mov.map(r=>`<tr class="${r.aid?'clic':''}" ${r.aid?`onclick="ir('act','${r.aid}')"`:''}><td><span class="chip" style="background:${(CLIN[r.linea]||'#5B6B70')}22;color:${CLIN[r.linea]||'#5B6B70'};font-weight:700">${esc(r.linea)}</span>${r.sub?`<div class="sub2" style="font-size:10.5px">${esc(r.sub)}</div>`:''}</td>
+    <td class="nom">${esc(r.nom)}</td><td class="sub2">${esc(r.desc)} · ${esc(r.ab||'')}</td><td>${r.cerrado?'<span class="chip c-fin">Ejecutado</span>':'<span class="chip c-pen">Comprometido</span>'}</td><td class="r num" style="font-weight:600">${plata(r.m)}</td></tr>`).join('')
+    :'<tr><td colspan="5"><div class="vacio">No hay movimientos para este recorte.</div></td></tr>'}</tbody></table></div></div></div>`}
+const ORDLIN=()=>['Conocé','Crecé','Explorá','Becas','Idiomas','Sin línea'];
+/* la pantalla de Presupuesto ahora tiene dos solapas: Resumen (la de siempre) y Detalle por línea */
+const _presResumen=V.pres,_presAfter=V.pres.after;
+V.pres=(arg)=>{
+ if(DB.cierre&&DB.cierre[EJ])return _presResumen(arg);
+ const tabs=`<div class="tabs"><button class="${PRS.sub===0?'on':''}" onclick="PRS.sub=0;refresh()">Resumen</button><button class="${PRS.sub===1?'on':''}" onclick="PRS.sub=1;refresh()">Detalle por línea</button></div>`;
+ if(PRS.sub===1)return presDetalle(tabs);
+ return _presResumen(arg).replace(' <div class="mets">',tabs+'\n <div class="mets">')};
+V.pres.after=_presAfter;
 function presCierre(C){
  const T=C.totales,N=presNum(),exc=N.rows.filter(r=>r.disp<0),sobre=exc.reduce((a,r)=>a-r.disp,0),margen=N.rows.reduce((a,r)=>a+Math.max(0,r.disp),0);
  const sumDI=C.di.reduce((a,x)=>a+x.monto,0),dc=d=>(d<0?'−':'+')+plata(Math.abs(d));
@@ -5131,7 +5294,7 @@ function exPlan(){
  syncEstadosAct();
  const ejs=exEjs(),A=DB.plan.filter(p=>ejs.includes(p.ej)&&(!EX.solo||p.est==='En curso'||p.est==='Finalizada'));
  const nros=p=>[...DB.fact.filter(x=>x.aid===p.id&&x.nro).map(x=>x.nro),...(p.gastos||[]).filter(g=>g.nro).map(g=>g.nro)];
- const caps=A.map(p=>{const f=actFechas(p),ac=activos(p);return{'Ejercicio':p.ej,'Capacitación':p.nom,'Tipo':p.tipo+(p.sub?' · '+p.sub:''),'Proveedor':p.prov||'','Modalidad':p.dict==='Interno'?'Interna':'Externa','Foco':p.foco||'','Estado':p.est,
+ const caps=A.map(p=>{const f=actFechas(p),ac=activos(p);return{'Ejercicio':p.ej,'Capacitación':p.nom,'Tipo':p.tipo+(p.sub?' · '+p.sub:''),'Proveedor':p.prov||'','Modalidad':p.dict==='Interno'?'Interna':'Externa','Foco':p.foco||'','Línea':p.linea||'','Estado':p.est,
   'Fecha de inicio':f.ini||'','Fecha de fin':f.fin||'','Fecha de inscripción':p.fli||'','Participantes':ac.length,'Asistencia promedio (%)':tieneAsis(p)?asisProm(p):'',
   'Monto previsto':exNum(p.ppto),'Monto real':exNum(p.real),'N° de factura':nros(p).join(' / '),'Arrastra del ej. pasado':p.arrastra?'Sí':'','Pasa al próximo ejercicio':p.prox?'Sí':'',
   'Notas':p.notas||'','Personas':ac.map(x=>x.nom).join('; ')}});
@@ -5541,6 +5704,8 @@ async function sbSalir(){if(SB.sucio){await sbFlush()}try{await SB.cli.auth.sign
 function postCarga(ejElegido){
  DB.cierre=DB.cierre||{};DB.inv=DB.inv||{};DB.mig=DB.mig||{};DB.comp=DB.comp||[];DB.rel=DB.rel||[];DB.nomPend=DB.nomPend||[];DB.nomLog=DB.nomLog||[];DB.fact=DB.fact||[];DB.hist=DB.hist||[];DB.pers=DB.pers||{};
  DB.cfg=DB.cfg||{};
+ /* los dos programas de Mercado (convocados del CONOCÉ) son de la línea Conocé */
+ DB.plan.forEach(p=>{if(!p.linea&&p.ej==='26.27'&&p.prov==='Interna'&&/^Mercado (granario|de capitales)$/.test(p.nom))p.linea='Conocé'});
  try{if(localStorage.getItem('fyo_nav_min'))document.body.classList.add('min')}catch(e){}
  HOY=(DB.cfg&&DB.cfg.hoyManual&&DB.cfg.hoy)?DB.cfg.hoy:hoyReal();if(DB.cfg)DB.cfg.hoy=HOY;window._hoyReal=hoyReal();
  EJ=ejElegido&&ejercicios().includes(ejElegido)?ejElegido:ejDeMes(HOY);
