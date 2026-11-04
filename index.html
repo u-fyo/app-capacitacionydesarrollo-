@@ -1248,6 +1248,12 @@ function migrarPostCarga(){
  DB.mig=DB.mig||{};let c=false;
  DB.plan.forEach(p=>{if(!p.linea&&p.ej==='26.27'&&p.prov==='Interna'&&/^Mercado (granario|de capitales)$/.test(p.nom)){p.linea='Conocé';c=true}});
  DB.plan.forEach(p=>{if(!p.linea){p.linea='Crecé';c=true}});   /* todo lo que no tenga línea es Crecé */
+ /* Hackaton IA del ejercicio 25.26: la hizo todo el personal que ya estaba en la compañía antes de que terminara el ejercicio (30/09/2026) */
+ if(!DB.mig.hackaton2526){DB.mig.hackaton2526=1;c=true;
+  if(!DB.plan.some(p=>p.ej==='25.26'&&/^hackat/i.test(String(p.nom||'')))&&DB.nom.length){
+   const gente=DB.nom.filter(n=>!n.ingreso||String(n.ingreso).slice(0,10)<='2026-09-30');
+   DB.plan.push({id:uid('A'),ej:'25.26',nom:'Hackaton IA',prov:'Interna',tipo:'Jornada',sub:'',dict:'Interno',foco:'IA',linea:'Crecé',alc:'Equipo',est:'Finalizada',estFijo:true,presup:'Dentro',aprob:'',fli:'',fest:'',freal:'',ini:'',fin:'',ppto:0,real:0,carg:'Micaela',motivo:'',prox:false,hs:'',
+    notas:'Participó todo el personal que estaba en la compañía durante el ejercicio.',accion:'',chk:[],docs:[],gastos:[],parts:gente.map(n=>fill(n.nombre)),enc:[],asis:{}})}}
  /* fyoTech: la cuenta de capacitaciones es 510501005 */
  DB.part.forEach(k=>{if(/fyotech/i.test(String(k.soc||k.ab||''))&&(!k.cta||/definir/i.test(String(k.cta)))){k.cta='510501005';c=true;
   (DB.fact||[]).forEach(f=>{if(f.cid===k.id&&(!f.cta||/definir/i.test(String(f.cta))))f.cta='510501005'})}});
@@ -4610,17 +4616,19 @@ V.pers=()=>`
  <div class="tabs" id="tb-pe">
   <button class="${PS.sub===2?'on':''}" onclick="PS.sub=2;refresh()">Histórico por año</button>
   <button class="${PS.sub===1?'on':''}" onclick="PS.sub=1;refresh()">Inversión por grupo</button>
-  <button class="${PS.sub===0?'on':''}" onclick="PS.sub=0;refresh()">Colaboradores</button></div>
+  <button class="${PS.sub===0?'on':''}" onclick="PS.sub=0;refresh()">Colaboradores</button>
+  <button class="${PS.sub===3?'on':''}" onclick="PS.sub=3;refresh()">⬇ Descargar reporte</button></div>
  <div class="pane ${PS.sub===2?'on':''}" id="pn-pe-2">${PS.sub===2?paneHist():''}</div>
  <div class="pane ${PS.sub===1?'on':''}" id="pn-pe-1">${PS.sub===1?paneGrupo():''}</div>
- <div class="pane ${PS.sub===0?'on':''}" id="pn-pe-0">${PS.sub===0?paneColab():''}</div>`;
+ <div class="pane ${PS.sub===0?'on':''}" id="pn-pe-0">${PS.sub===0?paneColab():''}</div>
+ <div class="pane ${PS.sub===3?'on':''}" id="pn-pe-3">${PS.sub===3?paneRep():''}</div>`;
 V.pers.after=()=>{
  const bind=(id,k,sub)=>{const e=$('#'+id);if(!e)return;
   if(e.tagName==='INPUT')e.oninput=ev=>{PS[k]=ev.target.value;clearTimeout(window['_t'+id]);
    window['_t'+id]=setTimeout(()=>{PS.sub=sub;refresh();const i=$('#'+id);if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length)}},250)};
   else e.onchange=ev=>{PS[k]=ev.target.value;PS.sub=sub;refresh()}};
  bind('psq','q',0);bind('pdim','dim',1);
- ['hq','hcap','hej','hlider','hvn','hprov','hfoco'].forEach(k=>bind(k,k,2));
+ ['hq','hcap','hej','hvn','hprov','hfoco'].forEach(k=>bind(k,k,2));
 };
 function paneColab(){
  const q=PS.q.toLowerCase();
@@ -4732,6 +4740,200 @@ function histTodo(){
  return out}
 const histEst=h=>h.s==='Realizado'?'Finalizada':h.s;
 const histChip=h=>{const e=histEst(h);return `<span class="chip ${e==='Finalizada'?'c-fin':e==='En curso'?'c-cur':e==='Pendiente'?'c-pen':'c-gris'}">${esc(e)}</span>`+(h.arr?' <span class="chip c-dif" title="Venía del ejercicio anterior y quedó pendiente">↩ pasó del ej. anterior</span>':'')};
+/* ═════ búsqueda de líderes y equipos (por nombre o apodo: "maxi", "auad") ═════ */
+const APODOS={nacho:'ignacio',nachito:'ignacio',maxi:'maximiliano',fede:'federico',nico:'nicolas',seba:'sebastian',pancho:'francisco',paco:'francisco',beto:'roberto',rober:'roberto',lucho:'luciano',pablito:'pablo',gonza:'gonzalo',facu:'facundo',santi:'santiago',guille:'guillermo',javi:'javier',marce:'marcelo',migue:'miguel',juli:'julian',cande:'candelaria',flor:'florencia',vero:'veronica',mari:'mariana',caro:'carolina',pato:'patricio',nacha:'ignacia'};
+function lev(a,b){const m=a.length,n=b.length;if(!m)return n;if(!n)return m;let p=Array.from({length:n+1},(_,i)=>i);for(let i=1;i<=m;i++){const c=[i];for(let j=1;j<=n;j++)c[j]=Math.min(p[j]+1,c[j-1]+1,p[j-1]+(a[i-1]===b[j-1]?0:1));p=c}return p[n]}
+const tokOk=(q,t)=>{const a=APODOS[q]||q;if(t.startsWith(a)||t.startsWith(q))return true;return q.length>=5&&(lev(q,t)<=2||lev(q,t.slice(0,q.length+1))<=1)};
+function buscarLideres(q){const ks=nomKey(q).split(' ').filter(Boolean);if(!ks.length)return[];
+ return DB.eq.map(e=>{const nk=nomKey(e.lider).split(' ');return ks.every(k=>nk.some(t=>tokOk(k,t)))?{e,sc:(nomKey(e.lider)===ks.join(' ')?1000:0)+e.n}:null}).filter(Boolean).sort((a,b)=>b.sc-a.sc).map(x=>x.e)}
+function histLider(v){v=String(v||'').trim();if(!v){PS.hlider='';PS.sub=2;refresh();return}
+ const ex=DB.eq.find(e=>e.lider===v),c=ex?[ex]:buscarLideres(v);
+ if(!c.length){toast('No encontré un líder con “'+v+'”');return}
+ PS.hlider=c[0].lider;PS.sub=2;refresh();if(c.length>1)toast('Muestro el equipo de '+c[0].lider+' · también coinciden: '+c.slice(1,4).map(x=>x.lider).join(', '))}
+
+/* ═════ Descargar reporte: se eligen las personas (a mano, por equipo, área, vertical…) y se baja el Excel del historial ═════ */
+let RPT={sel:[],para:'',ejs:[],modo:'todos',hojaHist:true,est:{Finalizada:true,'En curso':true,Pendiente:true},sinCap:true,conLider:false};
+const rptHay=n=>RPT.sel.includes(n);
+function rptSuma(L){let n=0;L.forEach(x=>{if(x&&!rptHay(x)){RPT.sel.push(x);n++}});RPT.sel.sort((a,b)=>a.localeCompare(b,'es'));return n}
+function rptEj(e){const A=RPT.ejs.length?RPT.ejs.slice():[];const i=A.indexOf(e);if(!RPT.ejs.length){RPT.ejs=histTodo().map(h=>h.e).filter((x,k,a)=>a.indexOf(x)===k).filter(x=>x!==e)}else if(i>=0)A.splice(i,1),RPT.ejs=A;else{A.push(e);RPT.ejs=A}
+ PS.sub=3;refresh()}
+function rptPersona(v){v=String(v||'').trim();if(!v)return;const f=buscarPersona(v)||resolverPers(v);
+ if(!f){toast('No encontré a “'+v+'” en la nómina');return}
+ const n=rptSuma([f.nombre]);PS.sub=3;refresh();toast(n?f.nombre+' sumada/o al reporte':f.nombre+' ya estaba')}
+function rptLider(v,modo){v=String(v||'').trim();modo=modo||RPT.modo;if(!v){toast('Escribí el nombre del líder');return}
+ const ex=DB.eq.find(e=>e.lider===v),c=ex?[ex]:buscarLideres(v);if(!c.length){toast('No encontré un líder con “'+v+'”');return}
+ const e=c[0],dir=new Set(e.dir),L=(modo==='dir'?e.dir:modo==='ind'?e.gente.filter(x=>!dir.has(x)):e.gente).slice();if(RPT.conLider)L.push(e.lider);
+ const n=rptSuma(L),T={dir:'directos',ind:'indirectos',todos:'directos e indirectos'}[modo];PS.sub=3;refresh();
+ toast(`Equipo de ${e.lider} (${T}): ${n} persona${n===1?'':'s'} sumada${n===1?'':'s'}${c.length>1?' · coinciden también: '+c.slice(1,3).map(x=>x.lider).join(', '):''}`)}
+function rptLinfo(v){const el=document.getElementById('rptLinfo');if(!el)return;v=String(v||'').trim();if(!v){el.innerHTML='';return}
+ const ex=DB.eq.find(e=>e.lider===v),c=ex?[ex]:buscarLideres(v);if(!c.length){el.innerHTML='<span style="color:var(--naranja)">No encontré ese líder</span>';return}
+ const e=c[0];el.innerHTML=`<b>${esc(e.lider)}</b> · ${esc(e.pos||'')} — ${e.nd} directo${e.nd===1?'':'s'} · ${e.n-e.nd} indirecto${e.n-e.nd===1?'':'s'} · ${e.n} en total${c.length>1?` <span style="opacity:.7">(también: ${c.slice(1,3).map(x=>esc(x.lider)).join(', ')})</span>`:''}`}
+function rptTodos(){const n=rptSuma(DB.nom.map(p=>p.nombre));PS.sub=3;refresh();toast(`Toda la nómina: ${DB.nom.length} personas en el reporte`)}
+function rptGrupo(k,v){if(!v){toast('Elegí una opción');return}const L=DB.nom.filter(p=>(p[k]||'')===v).map(p=>p.nombre);
+ if(!L.length){toast('No hay personas en ese grupo');return}const n=rptSuma(L);PS.sub=3;refresh();toast(`${n} persona${n===1?'':'s'} sumada${n===1?'':'s'} (${v})`)}
+function rptPegar(){const t=(document.getElementById('rptPeg')||{}).value||'';const L=lineasListado(t);if(!L.length){toast('Pegá una lista de nombres');return}
+ const ok=[],no=[];L.forEach(l=>{const f=detectarLinea(l);f?ok.push(f.nombre):no.push(l)});const n=rptSuma(ok);PS.sub=3;refresh();toast(`${n} sumadas${no.length?' · '+no.length+' sin coincidencia: '+no.slice(0,3).join(', '):''}`)}
+function rptQuitar(n){RPT.sel=RPT.sel.filter(x=>x!==n);PS.sub=3;refresh()}
+function rptLimpiar(){RPT.sel=[];PS.sub=3;refresh()}
+function rptRegs(nombre){const k=nomKey(nombre),out=[],vistos=new Set();
+ histTodo().forEach(h=>{if(nomKey(h.n)!==k)return;const est=histEst(h);if(!RPT.est[est])return;if(RPT.ejs.length&&!RPT.ejs.includes(h.e))return;
+  const t=h.e+'|'+h.c.trim().toLowerCase()+'|'+(h.i||'').toLowerCase();if(vistos.has(t))return;vistos.add(t);out.push({ej:h.e,cap:h.c.trim(),prov:h.i||'',est})});
+ return out.sort((a,b)=>b.ej.localeCompare(a.ej)||a.cap.localeCompare(b.cap,'es'))}
+function paneRep(){
+ const ejs=[...new Set(histTodo().map(h=>h.e))].sort(),S=RPT.sel.map(n=>({n,r:nomDe(n)||{},R:rptRegs(n)}));
+ const cont=(k,e)=>S.reduce((a,x)=>a+x.R.filter(r=>r.est===e).length,0);
+ const uniq=k=>[...new Set(DB.nom.map(p=>p[k]).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));
+ const lid=DB.eq.slice().sort((a,b)=>a.lider.localeCompare(b.lider,'es'));
+ return `
+ <div class="grid g2" style="align-items:start">
+  <div class="card"><div class="card-h"><h2>1 · ¿De quiénes?</h2><div class="n">sumá personas de a una o por grupo</div></div><div class="card-b">
+   <div class="f"><label>Una persona (nombre, apellido o legajo)</label><div style="display:flex;gap:8px"><input class="fi" id="rptP" list="dlRep" placeholder="Ej: Risso" style="flex:1" onkeydown="if(event.key==='Enter')rptPersona(this.value)"><button class="btn" onclick="rptPersona(document.getElementById('rptP').value)">Sumar</button></div>
+    <datalist id="dlRep">${DB.nom.slice().sort((a,b)=>a.nombre.localeCompare(b.nombre,'es')).map(p=>`<option value="${esc(p.nombre)}">${esc(p.posicion||'')} · legajo ${esc(p.legajo||'')}</option>`).join('')}</datalist></div>
+   <div class="f" style="margin-top:14px"><label>El equipo de un líder</label>
+    <input class="fi" id="rptL" list="dlLid2" placeholder="Ej: nacho ambros, roberto gianneschi, maxi auad" oninput="rptLinfo(this.value)" onkeydown="if(event.key==='Enter')rptLider(this.value)">
+    <div class="sub2" id="rptLinfo" style="margin:6px 0 8px;min-height:16px"></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${[['todos','Directos e indirectos'],['dir','Solo directos'],['ind','Solo indirectos']].map(([k,t])=>`<button type="button" class="cb ${RPT.modo===k?'on':''}" onclick="RPT.modo='${k}';PS.sub=3;{const v=(document.getElementById('rptL')||{}).value;RPT.lv=v};refresh()">${t}</button>`).join('')}</div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button class="btn" onclick="rptLider(document.getElementById('rptL').value)">Sumar el equipo</button>
+     <label class="check" style="font-size:12px"><input type="checkbox" ${RPT.conLider?'checked':''} onchange="RPT.conLider=this.checked"> Incluir también al líder</label></div>
+    <datalist id="dlLid2">${lid.map(e=>`<option value="${esc(e.lider)}">${esc(e.pos||'')} · ${e.nd} directos · ${e.n-e.nd} indirectos</option>`).join('')}</datalist></div>
+   <div class="f" style="margin-top:14px"><label>Por área, vertical o sociedad</label><div style="display:flex;gap:8px;flex-wrap:wrap">
+    <select class="fi" id="rptG" style="flex:1;min-width:200px"><option value="">Elegí…</option>
+     <optgroup label="Área">${uniq('unidad').map(x=>`<option value="unidad|${esc(x)}">${esc(x)}</option>`).join('')}</optgroup>
+     <optgroup label="Vertical">${uniq('vn').map(x=>`<option value="vn|${esc(x)}">${esc(x)}</option>`).join('')}</optgroup>
+     <optgroup label="Sociedad">${uniq('sociedad').map(x=>`<option value="sociedad|${esc(x)}">${esc(x)}</option>`).join('')}</optgroup></select>
+    <button class="btn g" onclick="{const v=document.getElementById('rptG').value.split('|');rptGrupo(v[0],v.slice(1).join('|'))}">Sumar grupo</button></div></div>
+   <div class="f" style="margin-top:14px"><label>Toda la empresa</label><button class="btn g" onclick="rptTodos()">Toda la nómina (${DB.nom.length} personas)</button><div class="hint">Para cuando lo pide la dirección: trae a todos los colaboradores.</div></div>
+   <details style="margin-top:14px"><summary style="cursor:pointer;font-weight:600;font-size:12.5px">Pegar una lista de nombres</summary><textarea id="rptPeg" style="width:100%;min-height:110px;margin-top:8px;padding:8px 10px;border:1px solid var(--linea);border-radius:10px" placeholder="Apellido&#9;Nombre (una persona por línea, tal cual del Excel)"></textarea>
+    <button class="btn g s" style="margin-top:8px" onclick="rptPegar()">Detectar y sumar</button></details>
+  </div></div>
+  <div class="card"><div class="card-h"><h2>2 · Qué incluir</h2><div class="n">todo lo que no tildes queda afuera</div></div><div class="card-b">
+   <div class="f"><label>Pedido de (aparece en el encabezado)</label><input class="fi" value="${esc(RPT.para)}" placeholder="Ej: Maximiliano Auad" oninput="RPT.para=this.value"></div>
+   <div class="f" style="margin-top:12px"><label>Ejercicios <span class="sub2" style="font-weight:400">· ${RPT.ejs.length?RPT.ejs.length+' elegido'+(RPT.ejs.length===1?'':'s'):'todos'}</span></label>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px"><button class="btn n s" onclick="RPT.ejs=[];PS.sub=3;refresh()">Todos</button><button class="btn n s" onclick="RPT.ejs=['${ejs[ejs.length-1]}'];PS.sub=3;refresh()">Solo el último</button><button class="btn n s" onclick="RPT.ejs=${JSON.stringify(ejs.slice(-3)).replace(/"/g,"'")};PS.sub=3;refresh()">Últimos 3</button></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">${ejs.slice().reverse().map(e=>`<button type="button" class="cb ${!RPT.ejs.length||RPT.ejs.includes(e)?'on':''}" onclick="rptEj('${e}')">${e}</button>`).join('')}</div></div>
+   <div style="display:flex;gap:14px;flex-wrap:wrap;margin:14px 0 6px">${['Finalizada','En curso','Pendiente'].map(e=>`<label class="check"><input type="checkbox" ${RPT.est[e]?'checked':''} onchange="RPT.est['${e}']=this.checked;PS.sub=3;refresh()"> ${e}</label>`).join('')}</div>
+   <label class="check" style="font-size:12.5px"><input type="checkbox" ${RPT.sinCap?'checked':''} onchange="RPT.sinCap=this.checked"> Incluir a las personas que todavía no tienen capacitaciones</label>
+   <label class="check" style="font-size:12.5px;margin-top:6px"><input type="checkbox" ${RPT.hojaHist?'checked':''} onchange="RPT.hojaHist=this.checked;PS.sub=3;refresh()"> Incluir la hoja “Historial” (un bloque por persona)${S.length>80&&RPT.hojaHist?' <span style="color:var(--naranja)">· con tantas personas queda muy larga: podés dejar solo “Datos”</span>':''}</label>
+   <div class="aviso" style="margin-top:14px">Lo bajás en Excel o en PDF. El Excel trae ${RPT.hojaHist?'dos hojas: <b>Historial</b> (un bloque por persona, ejercicio por ejercicio) y <b>Datos</b>':'una hoja: <b>Datos</b>'} (el listado con filtros).</div>
+   <div class="acts" style="margin-top:14px"><button class="btn" ${S.length?'':'disabled'} onclick="rptDescargar()">⬇ Descargar Excel${S.length?' ('+S.length+' persona'+(S.length===1?'':'s')+')':''}</button>
+    <button class="btn g" ${S.length?'':'disabled'} onclick="rptDescargarPDF()">⬇ Descargar PDF</button></div>
+  </div></div></div>
+ <div class="card" style="margin-top:14px"><div class="card-h"><h2>Personas del reporte</h2><div class="n">${S.length} · ${cont('','Finalizada')} finalizadas${cont('','En curso')+cont('','Pendiente')?' · '+(cont('','En curso')+cont('','Pendiente'))+' en curso o pendientes':''}</div>${S.length?'<button class="btn n s" onclick="rptLimpiar()">Quitar todas</button>':''}</div>
+  <div class="card-b flush">${S.length?`<div class="scroll" style="max-height:440px"><table><thead><tr><th>Persona</th><th>Puesto</th><th>Líder</th><th class="r">Finalizadas</th><th class="r">En curso</th><th class="r">Pendientes</th><th class="r">Último ejercicio</th><th></th></tr></thead>
+   <tbody>${S.map(x=>`<tr><td class="nom">${esc(x.n)}</td><td class="sub2">${esc(x.r.posicion||'—')}</td><td class="sub2">${esc(x.r.liderC||'—')}</td>
+    <td class="r num">${x.R.filter(r=>r.est==='Finalizada').length}</td><td class="r num">${x.R.filter(r=>r.est==='En curso').length||'—'}</td><td class="r num">${x.R.filter(r=>r.est==='Pendiente').length||'—'}</td>
+    <td class="r num">${x.R.length?x.R[0].ej:'—'}</td><td class="r"><button class="btn n s" title="Sacar del reporte" onclick="rptQuitar('${js(x.n)}')">✕</button></td></tr>`).join('')}</tbody></table></div>`
+   :'<div class="vacio"><b>Todavía no elegiste a nadie</b>Sumá una persona, el equipo de un líder o un grupo de la nómina.</div>'}</div></div>`}
+/* ═════ PDF del reporte (mismo contenido y estilo que el Excel) ═════ */
+async function rptCargarPDF(){
+ const cargar=u=>new Promise((ok,ko)=>{const t=document.createElement('script');t.src=u;t.onload=ok;t.onerror=()=>ko(new Error('No se pudo cargar la librería de PDF: revisá la conexión'));document.head.appendChild(t)});
+ if(!window.jspdf)await cargar('https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js');
+ if(!(window.jspdf&&window.jspdf.jsPDF.API.autoTable))await cargar('https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js')}
+async function rptFuentes(doc){
+ try{const base='https://raw.githubusercontent.com/google/fonts/main/ofl/poppins/';
+  for(const [f,st] of [['Poppins-Regular.ttf','normal'],['Poppins-Bold.ttf','bold']]){
+   const b=await fetch(base+f).then(r=>{if(!r.ok)throw new Error('fuente');return r.arrayBuffer()});const a=new Uint8Array(b);let bin='';
+   for(let i=0;i<a.length;i+=0x8000)bin+=String.fromCharCode.apply(null,a.subarray(i,i+0x8000));
+   doc.addFileToVFS(f,btoa(bin));doc.addFont(f,'Poppins',st)}
+  return 'Poppins'}catch(e){return 'helvetica'}}
+async function rptDescargarPDF(){
+ if(!RPT.sel.length){toast('Elegí al menos una persona');return}
+ try{toast('Armando el PDF…');await rptCargarPDF();
+  let S=RPT.sel.map(n=>({n,r:nomDe(n)||{},R:rptRegs(n)}));if(!RPT.sinCap)S=S.filter(x=>x.R.length);
+  if(!S.length){toast('Con esos filtros no hay capacitaciones para esas personas');return}
+  const {jsPDF}=window.jspdf,doc=new jsPDF({unit:'mm',format:'a4'}),FU=await rptFuentes(doc);
+  const CEL=[0,142,170],PET=[11,72,85],NIE=[238,244,246],LIN=[213,223,226],CAR=[30,42,46],GRI=[91,107,112],W=210,M=14,CW=W-2*M,PH=297;
+  const dd=iso=>{const p=String(iso||'').slice(0,10).split('-');return p.length===3?p[2]+'/'+p[1]+'/'+p[0]:''};
+  const T=(t,x,y,sz,st,col,o)=>{doc.setFont(FU,st||'normal');doc.setFontSize(sz);doc.setTextColor(col[0],col[1],col[2]);doc.text(String(t),x,y,o||{})};
+  const logo=(document.querySelector('.login-logo')||document.querySelector('.logo-mob')||{}).src;
+  if(logo&&/^data:image\/png/.test(logo))doc.addImage(logo,'PNG',M,12,19.1,9);
+  T('Historial por persona',M,33,17,'bold',CEL);
+  T((RPT.para.trim()?'Pedido de '+RPT.para.trim()+' · ':'')+S.length+' persona'+(S.length===1?'':'s')+' · cada capacitación, en qué ejercicio se hizo y con qué proveedor',M,39,8,'normal',GRI);
+  doc.setDrawColor(CEL[0],CEL[1],CEL[2]);doc.setLineWidth(.5);doc.line(M,43,W-M,43);
+  T('Finalizada: ya realizada · En curso: se está cursando · Pendiente: inscripta, todavía no empezó.',M,48,6.8,'normal',GRI);
+  const cE=e=>S.reduce((a,x)=>a+x.R.filter(q=>q.est===e).length,0);
+  const cards=[['Personas',S.length,'del reporte'],['Capacitaciones finalizadas',cE('Finalizada'),'ya realizadas'],['En curso',cE('En curso'),'se están cursando'],['Pendientes',cE('Pendiente'),'sin empezar']],cw=(CW-9)/4;
+  cards.forEach((c,i)=>{const x=M+i*(cw+3);doc.setFillColor(NIE[0],NIE[1],NIE[2]);doc.roundedRect(x,52,cw,19,1.5,1.5,'F');T(c[0],x+3,57.5,7,'normal',GRI);T(c[1],x+3,65,16,'bold',CEL);T(c[2],x+3,69.3,6.3,'normal',GRI)});
+  const EST={'Finalizada':[[27,127,84],[228,244,236]],'En curso':[[0,142,170],[225,241,245]],'Pendiente':[[138,95,0],[252,241,216]]};
+  let y=79;
+  S.forEach(x=>{
+   const fin=x.R.filter(q=>q.est==='Finalizada').length;
+   if(y>PH-48){doc.addPage();y=16}
+   doc.setFillColor(PET[0],PET[1],PET[2]);doc.roundedRect(M,y,CW,9,1,1,'F');T(x.n,M+3,y+6,10.5,'bold',[255,255,255]);T(fin+' finalizada'+(fin===1?'':'s'),W-M-3,y+6,8,'bold',[255,255,255],{align:'right'});
+   doc.setFillColor(NIE[0],NIE[1],NIE[2]);doc.rect(M,y+9,CW,6.5,'F');
+   T([x.r.posicion,x.r.unidad,x.r.liderC?'líder: '+x.r.liderC:'',x.r.ingreso?'ingresó el '+dd(x.r.ingreso):''].filter(Boolean).join(' · ')||'—',M+3,y+13.4,6.8,'normal',GRI);
+   let last=null;
+   const body=x.R.length?x.R.map(q=>{const E=EST[q.est],r=[{content:q.ej!==last?q.ej:''},q.cap,q.prov||'—',{content:q.est,styles:{textColor:E[0],fillColor:E[1],fontStyle:'bold',halign:'center'}}];last=q.ej;return r})
+    :[[{content:'Sin capacitaciones registradas',colSpan:4,styles:{textColor:GRI,halign:'left'}}]];
+   doc.autoTable({startY:y+17,margin:{left:M,right:M,bottom:18},head:[['Ejercicio','Capacitación','Proveedor','Estado']],body,theme:'plain',
+    styles:{font:FU,fontSize:7.8,cellPadding:{top:1.9,bottom:1.9,left:2,right:2},textColor:CAR,valign:'middle'},
+    headStyles:{textColor:CEL,fontStyle:'bold',fontSize:7.2,fillColor:[255,255,255]},
+    columnStyles:{0:{cellWidth:20,halign:'center',fontStyle:'bold',textColor:CEL},2:{cellWidth:44},3:{cellWidth:24,halign:'center'}},
+    didDrawCell:d=>{doc.setDrawColor(...(d.section==='head'?CEL:LIN));doc.setLineWidth(d.section==='head'?.3:.12);doc.line(d.cell.x,d.cell.y+d.cell.height,d.cell.x+d.cell.width,d.cell.y+d.cell.height)}});
+   y=doc.lastAutoTable.finalY+8});
+  const N=doc.getNumberOfPages();
+  for(let i=1;i<=N;i++){doc.setPage(i);T('FYO · Capacitación y Desarrollo',M,PH-8,7,'normal',GRI);T(i+' / '+N,W-M,PH-8,7,'normal',GRI,{align:'right'})}
+  const nom='Historial_capacitaciones'+(RPT.para.trim()?'_'+RPT.para.trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^\w]+/g,'_'):'')+'_'+HOY+'.pdf';
+  doc.save(nom);toast('✓ Descargado: '+nom)
+ }catch(e){console.error(e);toast('No se pudo armar el PDF: '+(e.message||e))}}
+async function rptCargarXL(){if(window.ExcelJS)return;await new Promise((ok,ko)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js';s.onload=ok;s.onerror=()=>ko(new Error('No se pudo cargar la librería de Excel: revisá la conexión'));document.head.appendChild(s)})}
+async function rptDescargar(){
+ if(!RPT.sel.length){toast('Elegí al menos una persona');return}
+ try{toast('Armando el Excel…');await rptCargarXL();
+  const dd=iso=>{const p=String(iso||'').slice(0,10).split('-');return p.length===3?p[2]+'/'+p[1]+'/'+p[0]:''};
+  let S=RPT.sel.map(n=>({n,r:nomDe(n)||{},R:rptRegs(n)}));if(!RPT.sinCap)S=S.filter(x=>x.R.length);
+  if(!S.length){toast('Con esos filtros no hay capacitaciones para esas personas');return}
+  const AR=h=>'FF'+h,FU='Poppins',wb=new ExcelJS.Workbook();wb.creator='FYO · Capacitación y Desarrollo';
+  const fnt=(sz,b,c,i)=>({name:FU,size:sz,bold:!!b,italic:!!i,color:{argb:AR(c||'1E2A2E')}}),fill=c=>({type:'pattern',pattern:'solid',fgColor:{argb:AR(c)}}),fino={style:'thin',color:{argb:AR('D5DFE2')}};
+  const EST={'Finalizada':['E4F4EC','1B7F54','✓ Finalizada'],'En curso':['E1F1F5','008EAA','● En curso'],'Pendiente':['FCF1D8','8A5F00','○ Pendiente']};
+  const logo=(document.querySelector('.login-logo')||document.querySelector('.logo-mob')||{}).src;
+  /* ── Historial ── */
+  const h=RPT.hojaHist?wb.addWorksheet('Historial',{views:[{showGridLines:false}],properties:{tabColor:{argb:AR('008EAA')}}}):null;
+  if(h){
+  [3,12,60,32,16,3].forEach((w,i)=>h.getColumn(i+1).width=w);h.getRow(1).height=14;h.getRow(2).height=30;
+  if(logo&&/^data:image\/png/.test(logo)){const id=wb.addImage({base64:logo,extension:'png'});h.addImage(id,{tl:{col:1,row:1},ext:{width:64,height:30}})}
+  h.getCell('B4').value='Historial por persona';h.getCell('B4').font=fnt(18,true,'008EAA');h.getRow(4).height=30;
+  h.getCell('B5').value=(RPT.para.trim()?'Pedido de '+RPT.para.trim()+' · ':'')+S.length+' persona'+(S.length===1?'':'s')+' · cada capacitación, en qué ejercicio se hizo y con qué proveedor';h.getCell('B5').font=fnt(10,false,'5B6B70');
+  [2,3,4,5].forEach(c=>{h.getCell(6,c).border={bottom:{style:'medium',color:{argb:AR('008EAA')}}}});h.getRow(6).height=8;
+  h.getCell('B7').value='Finalizada: ya realizada · En curso: se está cursando · Pendiente: inscripta, todavía no empezó. Los datos salen de la hoja “Datos”.';h.getCell('B7').font=fnt(8.5,false,'5B6B70',true);h.getRow(7).height=20;
+  /* métricas del reporte: personas y capacitaciones por estado */
+  const cE=e=>S.reduce((a,x)=>a+x.R.filter(q=>q.est===e).length,0);
+  [['Personas',S.length,'del reporte',null],['Capacitaciones finalizadas',cE('Finalizada'),'ya realizadas','Finalizada'],['En curso',cE('En curso'),'se están cursando','En curso'],['Pendientes',cE('Pendiente'),'sin empezar','Pendiente']].forEach(([t,v,n,est],i)=>{
+   const c=i+2,A=h.getCell(8,c),B=h.getCell(9,c),Cn=h.getCell(10,c);
+   [A,B,Cn].forEach(x=>{x.fill=fill('EEF4F6');x.alignment={horizontal:'left',vertical:'middle',indent:1};x.border={left:{style:'thick',color:{argb:AR('FFFFFF')}},right:{style:'thick',color:{argb:AR('FFFFFF')}}}});
+   A.value=t;A.font=fnt(9,false,'5B6B70');
+   B.value=est?{formula:'COUNTIF(Datos!$F:$F,"'+est+'")',result:v}:v;B.font=fnt(20,true,'008EAA');B.numFmt='0';
+   Cn.value=n;Cn.font=fnt(8,false,'5B6B70')});
+  h.getRow(8).height=22;h.getRow(9).height=38;h.getRow(10).height=20;
+  let r=12;
+  S.forEach(x=>{
+   const fin=x.R.filter(q=>q.est==='Finalizada').length;
+   [2,3,4,5].forEach(c=>{h.getCell(r,c).fill=fill('0B4855')});h.getCell(r,2).value=x.n;h.getCell(r,2).font=fnt(13,true,'FFFFFF');h.getCell(r,2).alignment={vertical:'middle',indent:1};
+   h.getCell(r,5).value=fin+' finalizada'+(fin===1?'':'s');h.getCell(r,5).font=fnt(10,true,'FFFFFF');h.getCell(r,5).alignment={horizontal:'right',vertical:'middle',indent:1};h.getRow(r).height=30;r++;
+   [2,3,4,5].forEach(c=>{h.getCell(r,c).fill=fill('EEF4F6')});
+   h.getCell(r,2).value=[x.r.posicion,x.r.unidad,x.r.liderC?'líder: '+x.r.liderC:'',x.r.ingreso?'ingresó el '+dd(x.r.ingreso):''].filter(Boolean).join(' · ')||'—';h.getCell(r,2).font=fnt(9,false,'5B6B70');h.getCell(r,2).alignment={vertical:'middle',indent:1};h.getRow(r).height=22;r++;
+   ['Ejercicio','Capacitación','Proveedor','Estado'].forEach((t,j)=>{const c=h.getCell(r,j+2);c.value=t;c.font=fnt(9,true,'008EAA');c.alignment={horizontal:(j===0||j===3)?'center':'left',vertical:'middle',indent:(j===0||j===3)?0:1};c.border={bottom:{style:'thin',color:{argb:AR('008EAA')}}}});h.getRow(r).height=22;r++;
+   if(!x.R.length){const c=h.getCell(r,3);c.value='Sin capacitaciones registradas';c.font=fnt(10,false,'5B6B70',true);c.alignment={vertical:'middle',indent:1};[2,3,4,5].forEach(k=>h.getCell(r,k).border={bottom:fino});h.getRow(r).height=24;r++}
+   let last=null;
+   x.R.forEach(q=>{
+    h.getRow(r).height=24;
+    const a=h.getCell(r,2);a.value=q.ej!==last?q.ej:'';a.font=fnt(10,true,'008EAA');a.alignment={horizontal:'center',vertical:'middle'};
+    const b=h.getCell(r,3);b.value=q.cap;b.font=fnt(10);b.alignment={vertical:'middle',indent:1,wrapText:true};
+    const c=h.getCell(r,4);c.value=q.prov||'—';c.font=fnt(10,false,q.prov?'1E2A2E':'5B6B70');c.alignment={vertical:'middle',indent:1,wrapText:true};
+    const e=h.getCell(r,5),E=EST[q.est];e.value=E[2];e.font=fnt(9,true,E[1]);e.fill=fill(E[0]);e.alignment={horizontal:'center',vertical:'middle'};
+    [2,3,4,5].forEach(k=>h.getCell(r,k).border={bottom:fino});last=q.ej;r++});
+   r+=2});
+  h.pageSetup={orientation:'portrait',fitToPage:true,fitToWidth:1,fitToHeight:0,margins:{left:.5,right:.5,top:.6,bottom:.6,header:.3,footer:.3}};
+  h.headerFooter.oddFooter='&L&"Poppins"FYO · Capacitación y Desarrollo&R&"Poppins"&P / &N';}
+  /* ── Datos ── */
+  const d=wb.addWorksheet('Datos',{views:[{state:'frozen',ySplit:1,showGridLines:false}]});
+  [['Persona',32],['Legajo',12],['Ejercicio',11],['Capacitación',58],['Proveedor',30],['Estado',14]].forEach(([t,w],i)=>{d.getColumn(i+1).width=w;const c=d.getCell(1,i+1);c.value=t;c.font=fnt(10,true,'FFFFFF');c.fill=fill('0B4855');c.alignment={vertical:'middle',indent:1}});d.getRow(1).height=26;
+  let k=2;S.forEach(x=>x.R.forEach(q=>{[x.n,x.r.legajo||'',q.ej,q.cap,q.prov||'—',q.est].forEach((v,j)=>{const c=d.getCell(k,j+1);c.value=v;c.font=fnt(10);c.border={bottom:fino};c.alignment={vertical:'middle',indent:1,horizontal:(j===1||j===2)?'center':'left',wrapText:j===3};if(k%2)c.fill=fill('EEF4F6')});d.getRow(k).height=22;k++}));
+  d.autoFilter={from:'A1',to:'F'+Math.max(2,k-1)};d.pageSetup={orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:0};d.pageSetup.printTitlesRow='1:1';
+  const buf=await wb.xlsx.writeBuffer(),bl=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const nom='Historial_capacitaciones'+(RPT.para.trim()?'_'+RPT.para.trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^\w]+/g,'_'):'')+'_'+HOY+'.xlsx',a=document.createElement('a');a.href=URL.createObjectURL(bl);a.download=nom;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1500);
+  toast('✓ Descargado: '+nom)
+ }catch(e){console.error(e);toast('No se pudo armar el Excel: '+(e.message||e))}}
 function paneGrupo(){
  const dim=PS.dim,key={vn:'vn',un:'un',lider:'lider',soc:'soc'}[dim],dotKey={vn:'vn',un:'unidad',lider:'liderC',soc:'sociedad'}[dim];
  const nomG=n=>{const p=nomDe(n);return(p&&(dim==='vn'?p.vn:dim==='un'?p.unidad:dim==='lider'?p.liderC:p.sociedad))||'Sin asignar'};
@@ -4778,7 +4980,7 @@ function paneGrupo(){
 function paneHist(){
  const H=histTodo(),ejs=[...new Set(H.map(h=>h.e))].sort().reverse();
  const provs=[...new Set(H.map(h=>h.i).filter(Boolean))].sort();
- const eqF=PS.hlider?eqDe(PS.hlider):null,setF=eqF?new Set(eqF.gente):null;
+ const eqF=PS.hlider?eqDe(PS.hlider):null,setF=eqF?new Set(PS.hdir?eqF.dir:eqF.gente):null;
  const focoDe={};DB.plan.forEach(p=>{if(p.foco)focoDe[p.nom.toLowerCase()]=p.foco});
  const q=(PS.hq||'').toLowerCase(),filtrado=!!(PS.hq||PS.hej||PS.hlider||PS.hvn||PS.hprov||PS.hfoco);
  const L=H.filter(h=>(!PS.hej||h.e===PS.hej)&&(!PS.hprov||h.i===PS.hprov)&&(!setF||setF.has(h.n))
@@ -4794,11 +4996,13 @@ function paneHist(){
   <div class="fgrid">
    ${fSel('hej','Año de ejercicio',PS.hej,{all:'Todos',list:ejs})}
    ${fSel('hvn','Vertical',PS.hvn,{all:'Todas',list:VERTS})}
-   ${fSel('hlider','Líder o equipo',PS.hlider,{all:'Todos',list:DB.eq.slice().sort((a,b)=>a.lider.localeCompare(b.lider)).map(e=>({v:e.lider,t:e.lider+' ('+e.n+')'}))})}
+   <div class="fg"><label>Equipo de un líder</label><input class="fi" id="hlq" list="dlLid" placeholder="Escribí el nombre: maxi, auad…" value="${esc(PS.hlider||'')}" onchange="histLider(this.value)" onkeydown="if(event.key==='Enter')histLider(this.value)">
+    <label class="check" style="font-size:11.5px;margin-top:5px"><input type="checkbox" ${PS.hdir?'checked':''} onchange="PS.hdir=this.checked;PS.sub=2;refresh()"> Solo su equipo directo</label>
+    <datalist id="dlLid">${DB.eq.slice().sort((a,b)=>a.lider.localeCompare(b.lider,'es')).map(e=>`<option value="${esc(e.lider)}">${esc(e.pos||'')} · ${e.n} personas</option>`).join('')}</datalist></div>
    ${fSel('hfoco','Tipo de capacitación',PS.hfoco,{all:'Todos',list:FOCOS})}
    ${fSel('hprov','Proveedor',PS.hprov,{all:'Todos',list:provs})}
   </div>
-  ${fChips({hq:PS.hq,hej:PS.hej,hvn:PS.hvn,hlider:PS.hlider,hfoco:PS.hfoco,hprov:PS.hprov},{hq:'Búsqueda',hej:'Ejercicio',hvn:'Vertical',hlider:'Líder',hfoco:'Foco',hprov:'Proveedor'},'hLimpiar')}
+  ${fChips({hq:PS.hq,hej:PS.hej,hvn:PS.hvn,hlider:PS.hlider,hfoco:PS.hfoco,hprov:PS.hprov},{hq:'Búsqueda',hej:'Ejercicio',hvn:'Vertical',hlider:PS.hdir?'Equipo directo de':'Equipo de',hfoco:'Foco',hprov:'Proveedor'},'hLimpiar')}
  </div>
  <div class="mets">
   ${met('Registros',L.length.toLocaleString('es-AR'),`de ${H.length.toLocaleString('es-AR')} · ${ejs[ejs.length-1]} a ${ejs[0]}`,'met-tot')}
