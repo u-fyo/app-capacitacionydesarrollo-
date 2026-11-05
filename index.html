@@ -4617,7 +4617,7 @@ V.pers=()=>`
   <button class="${PS.sub===2?'on':''}" onclick="PS.sub=2;refresh()">Histórico por año</button>
   <button class="${PS.sub===1?'on':''}" onclick="PS.sub=1;refresh()">Inversión por grupo</button>
   <button class="${PS.sub===0?'on':''}" onclick="PS.sub=0;refresh()">Colaboradores</button>
-  <button class="${PS.sub===3?'on':''}" onclick="PS.sub=3;refresh()">⬇ Descargar reporte</button></div>
+  <button class="${PS.sub===3?'on':''}" onclick="PS.sub=3;refresh()">⬇ Reportes</button></div>
  <div class="pane ${PS.sub===2?'on':''}" id="pn-pe-2">${PS.sub===2?paneHist():''}</div>
  <div class="pane ${PS.sub===1?'on':''}" id="pn-pe-1">${PS.sub===1?paneGrupo():''}</div>
  <div class="pane ${PS.sub===0?'on':''}" id="pn-pe-0">${PS.sub===0?paneColab():''}</div>
@@ -4751,79 +4751,139 @@ function histLider(v){v=String(v||'').trim();if(!v){PS.hlider='';PS.sub=2;refres
  if(!c.length){toast('No encontré un líder con “'+v+'”');return}
  PS.hlider=c[0].lider;PS.sub=2;refresh();if(c.length>1)toast('Muestro el equipo de '+c[0].lider+' · también coinciden: '+c.slice(1,4).map(x=>x.lider).join(', '))}
 
-/* ═════ Descargar reporte: se eligen las personas (a mano, por equipo, área, vertical…) y se baja el Excel del historial ═════ */
-let RPT={sel:[],para:'',ejs:[],modo:'todos',hojaHist:true,est:{Finalizada:true,'En curso':true,Pendiente:true},sinCap:true,conLider:false};
+/* ═════ Reportes: se eligen las personas (por líder o gerente, sociedad, área y vertical, combinables), se revisa la lista y se baja en Excel o PDF; queda un historial ═════ */
+let RPT={sel:[],para:'',titulo:'',desc:[],ejs:[],modo:'todos',hojaHist:true,est:{Finalizada:true,'En curso':true,Pendiente:true},sinCap:true,conLider:false,
+ crit:{lid:[],soc:[],area:[],vert:[]},desm:[],qArea:'',vista:'nuevo',histId:null,todos:false};
+const fcorta=iso=>{const p=String(iso||'').slice(0,10).split('-');return p.length===3?`${+p[2]}/${+p[1]}/${p[0].slice(2)}`:''};
 const rptHay=n=>RPT.sel.includes(n);
+const rptVer=()=>{PS.sub=3;refresh()};
 function rptSuma(L){let n=0;L.forEach(x=>{if(x&&!rptHay(x)){RPT.sel.push(x);n++}});RPT.sel.sort((a,b)=>a.localeCompare(b,'es'));return n}
-function rptEj(e){const A=RPT.ejs.length?RPT.ejs.slice():[];const i=A.indexOf(e);if(!RPT.ejs.length){RPT.ejs=histTodo().map(h=>h.e).filter((x,k,a)=>a.indexOf(x)===k).filter(x=>x!==e)}else if(i>=0)A.splice(i,1),RPT.ejs=A;else{A.push(e);RPT.ejs=A}
- PS.sub=3;refresh()}
+const rptDesc=t=>{if(t&&!RPT.desc.includes(t))RPT.desc.push(t)};
+/* —— criterios combinables: dentro de un criterio se suman (o), entre criterios se cruzan (y) —— */
+const MODOS={todos:'directos e indirectos',dir:'solo directos',ind:'solo indirectos'};
+function rptLidSet(){const S=new Set();RPT.crit.lid.forEach(l=>{const e=DB.eq.find(x=>x.lider===l);if(!e)return;const dir=new Set(e.dir);(RPT.modo==='dir'?e.dir:RPT.modo==='ind'?e.gente.filter(x=>!dir.has(x)):e.gente).forEach(n=>S.add(n));if(RPT.conLider)S.add(l)});return S}
+function rptFiltrar(omit,extra){
+ const C=RPT.crit,act=k=>k!==omit&&C[k].length;let L=DB.nom.slice();
+ if(act('lid')){const S=rptLidSet();L=L.filter(p=>S.has(p.nombre))}
+ if(act('soc'))L=L.filter(p=>C.soc.includes(p.sociedad));if(act('area'))L=L.filter(p=>C.area.includes(p.unidad));if(act('vert'))L=L.filter(p=>C.vert.includes(p.vn));
+ if(extra)L=L.filter(extra);return L}
+const rptActivo=()=>Object.values(RPT.crit).some(a=>a.length);
+function rptCand(){return rptActivo()?rptFiltrar().sort((a,b)=>a.nombre.localeCompare(b.nombre,'es')):[]}
+function rptToggle(k,v){const A=RPT.crit[k],i=A.indexOf(v);i>=0?A.splice(i,1):A.push(v);RPT.desm=[];rptVer()}
+function rptAddLid(txt){txt=String(txt||'').trim();if(!txt){toast('Escribí el nombre del líder o gerente');return}
+ const ex=DB.eq.find(e=>e.lider===txt),c=ex?[ex]:buscarLideres(txt);if(!c.length){toast('No encontré un líder o gerente con “'+txt+'”');return}
+ if(!RPT.crit.lid.includes(c[0].lider))RPT.crit.lid.push(c[0].lider);RPT.desm=[];rptVer();if(c.length>1)toast('Agregué a '+c[0].lider+' · también coinciden: '+c.slice(1,3).map(x=>x.lider).join(', '))}
+function rptQuitarLid(l){RPT.crit.lid=RPT.crit.lid.filter(x=>x!==l);RPT.desm=[];rptVer()}
+function rptModo(m){RPT.modo=m;RPT.desm=[];rptVer()}
+function rptLimpiaCrit(){RPT.crit={lid:[],soc:[],area:[],vert:[]};RPT.desm=[];RPT.qArea='';rptVer()}
+function rptDm(n,on){const i=RPT.desm.indexOf(n);if(on&&i>=0)RPT.desm.splice(i,1);if(!on&&i<0)RPT.desm.push(n);rptDmCuenta()}
+function rptDmTodos(v){const C=rptCand();RPT.desm=v?[]:C.map(p=>p.nombre);rptVer()}
+function rptDmCuenta(){const C=rptCand(),n=C.filter(p=>!RPT.desm.includes(p.nombre)).length,b=document.getElementById('rptSumar');if(b){b.textContent=`Sumar ${n} persona${n===1?'':'s'} al reporte`;b.disabled=!n}}
+function rptDescCrit(){const C=RPT.crit,P=[];
+ if(C.lid.length)P.push('equipo '+C.lid.join(' + ')+' ('+MODOS[RPT.modo]+')');
+ if(C.soc.length)P.push(C.soc.map(ab).join(' + '));if(C.area.length)P.push(C.area.join(' + '));if(C.vert.length)P.push(C.vert.join(' + '));return P.join(' · ')}
+function rptSumarPrev(){const C=rptCand().filter(p=>!RPT.desm.includes(p.nombre));if(!C.length){toast('No hay nadie tildado');return}
+ const n=rptSuma(C.map(p=>p.nombre));rptDesc(rptDescCrit());RPT.crit={lid:[],soc:[],area:[],vert:[]};RPT.desm=[];RPT.qArea='';rptVer();toast(`${n} persona${n===1?'':'s'} sumada${n===1?'':'s'} al reporte`)}
+/* —— sumar directo —— */
 function rptPersona(v){v=String(v||'').trim();if(!v)return;const f=buscarPersona(v)||resolverPers(v);
  if(!f){toast('No encontré a “'+v+'” en la nómina');return}
- const n=rptSuma([f.nombre]);PS.sub=3;refresh();toast(n?f.nombre+' sumada/o al reporte':f.nombre+' ya estaba')}
-function rptLider(v,modo){v=String(v||'').trim();modo=modo||RPT.modo;if(!v){toast('Escribí el nombre del líder');return}
- const ex=DB.eq.find(e=>e.lider===v),c=ex?[ex]:buscarLideres(v);if(!c.length){toast('No encontré un líder con “'+v+'”');return}
- const e=c[0],dir=new Set(e.dir),L=(modo==='dir'?e.dir:modo==='ind'?e.gente.filter(x=>!dir.has(x)):e.gente).slice();if(RPT.conLider)L.push(e.lider);
- const n=rptSuma(L),T={dir:'directos',ind:'indirectos',todos:'directos e indirectos'}[modo];PS.sub=3;refresh();
- toast(`Equipo de ${e.lider} (${T}): ${n} persona${n===1?'':'s'} sumada${n===1?'':'s'}${c.length>1?' · coinciden también: '+c.slice(1,3).map(x=>x.lider).join(', '):''}`)}
-function rptLinfo(v){const el=document.getElementById('rptLinfo');if(!el)return;v=String(v||'').trim();if(!v){el.innerHTML='';return}
- const ex=DB.eq.find(e=>e.lider===v),c=ex?[ex]:buscarLideres(v);if(!c.length){el.innerHTML='<span style="color:var(--naranja)">No encontré ese líder</span>';return}
- const e=c[0];el.innerHTML=`<b>${esc(e.lider)}</b> · ${esc(e.pos||'')} — ${e.nd} directo${e.nd===1?'':'s'} · ${e.n-e.nd} indirecto${e.n-e.nd===1?'':'s'} · ${e.n} en total${c.length>1?` <span style="opacity:.7">(también: ${c.slice(1,3).map(x=>esc(x.lider)).join(', ')})</span>`:''}`}
-function rptTodos(){const n=rptSuma(DB.nom.map(p=>p.nombre));PS.sub=3;refresh();toast(`Toda la nómina: ${DB.nom.length} personas en el reporte`)}
-function rptGrupo(k,v){if(!v){toast('Elegí una opción');return}const L=DB.nom.filter(p=>(p[k]||'')===v).map(p=>p.nombre);
- if(!L.length){toast('No hay personas en ese grupo');return}const n=rptSuma(L);PS.sub=3;refresh();toast(`${n} persona${n===1?'':'s'} sumada${n===1?'':'s'} (${v})`)}
+ const n=rptSuma([f.nombre]);rptDesc('personas elegidas a mano');rptVer();toast(n?f.nombre+' sumada/o al reporte':f.nombre+' ya estaba')}
 function rptPegar(){const t=(document.getElementById('rptPeg')||{}).value||'';const L=lineasListado(t);if(!L.length){toast('Pegá una lista de nombres');return}
- const ok=[],no=[];L.forEach(l=>{const f=detectarLinea(l);f?ok.push(f.nombre):no.push(l)});const n=rptSuma(ok);PS.sub=3;refresh();toast(`${n} sumadas${no.length?' · '+no.length+' sin coincidencia: '+no.slice(0,3).join(', '):''}`)}
-function rptQuitar(n){RPT.sel=RPT.sel.filter(x=>x!==n);PS.sub=3;refresh()}
-function rptLimpiar(){RPT.sel=[];PS.sub=3;refresh()}
+ const ok=[],no=[];L.forEach(l=>{const f=detectarLinea(l);f?ok.push(f.nombre):no.push(l)});const n=rptSuma(ok);rptDesc('lista pegada');rptVer();toast(`${n} sumadas${no.length?' · '+no.length+' sin coincidencia: '+no.slice(0,3).join(', '):''}`)}
+function rptTodos(){rptSuma(DB.nom.map(p=>p.nombre));RPT.todos=true;rptDesc('toda la nómina');rptVer();toast(`Toda la nómina: ${DB.nom.length} personas en el reporte`)}
+function rptQuitar(n){RPT.sel=RPT.sel.filter(x=>x!==n);rptVer()}
+function rptLimpiar(){RPT.sel=[];RPT.desc=[];RPT.todos=false;RPT.histId=null;RPT.titulo='';rptVer()}
+function rptEj(e){const A=RPT.ejs.length?RPT.ejs.slice():[];const i=A.indexOf(e);if(!RPT.ejs.length){RPT.ejs=histTodo().map(h=>h.e).filter((x,k,a)=>a.indexOf(x)===k).filter(x=>x!==e)}else if(i>=0)A.splice(i,1),RPT.ejs=A;else{A.push(e);RPT.ejs=A}rptVer()}
+function rptTituloAuto(){const D=RPT.desc.length?RPT.desc:(RPT.sel.length?[RPT.sel.length+' personas']:[]);if(!D.length)return 'Reporte';
+ return ('Reporte '+D.join(' + ').replace(/ \(directos e indirectos\)/g,'')).slice(0,80)}
+const rptTitulo=()=>(RPT.titulo||'').trim()||rptTituloAuto();
+function rptNombreArchivo(ext){const sl=t=>String(t||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^\w]+/g,'_').replace(/^_+|_+$/g,'').slice(0,60);
+ const b=RPT.titulo.trim()||RPT.para.trim();return 'Historial_capacitaciones'+(b?'_'+sl(b):'')+'_'+HOY+'.'+ext}
 function rptRegs(nombre){const k=nomKey(nombre),out=[],vistos=new Set();
  histTodo().forEach(h=>{if(nomKey(h.n)!==k)return;const est=histEst(h);if(!RPT.est[est])return;if(RPT.ejs.length&&!RPT.ejs.includes(h.e))return;
   const t=h.e+'|'+h.c.trim().toLowerCase()+'|'+(h.i||'').toLowerCase();if(vistos.has(t))return;vistos.add(t);out.push({ej:h.e,cap:h.c.trim(),prov:h.i||'',est})});
  return out.sort((a,b)=>b.ej.localeCompare(a.ej)||a.cap.localeCompare(b.cap,'es'))}
+
+/* —— historial de reportes pedidos (se guarda con el resto de los datos) —— */
+const rptFirma=()=>JSON.stringify([RPT.sel,RPT.ejs,RPT.est,RPT.sinCap,RPT.hojaHist,RPT.para,RPT.titulo]);
+function rptReg(fmt){
+ DB.cfg.reportes=DB.cfg.reportes||[];let h=RPT.histId&&DB.cfg.reportes.find(x=>x.id===RPT.histId);const f=rptFirma();
+ if(!h||h.firma!==f){h={id:uid('R'),firma:f,tm:RPT.titulo,titulo:rptTitulo(),fecha:HOY,para:RPT.para.trim(),desc:RPT.desc.slice(),n:RPT.sel.length,todos:RPT.todos&&RPT.sel.length>=DB.nom.length,sel:(RPT.todos&&RPT.sel.length>=DB.nom.length)?[]:RPT.sel.slice(),
+  opts:{ejs:RPT.ejs.slice(),est:{...RPT.est},sinCap:RPT.sinCap,hojaHist:RPT.hojaHist},formatos:[]};DB.cfg.reportes.unshift(h);DB.cfg.reportes=DB.cfg.reportes.slice(0,40);RPT.histId=h.id}
+ if(!h.formatos.includes(fmt))h.formatos.push(fmt);h.ultima=HOY;guardar()}
+function rptEntrada(id){return (DB.cfg.reportes||[]).find(x=>x.id===id)}
+function rptAplica(h){RPT.sel=h.todos?DB.nom.map(p=>p.nombre):h.sel.filter(n=>DB.nom.some(p=>p.nombre===n));RPT.todos=!!h.todos;RPT.para=h.para||'';RPT.titulo=h.tm!==undefined?h.tm:'';RPT.desc=(h.desc||[]).slice();
+ RPT.ejs=(h.opts.ejs||[]).slice();RPT.est={...h.opts.est};RPT.sinCap=h.opts.sinCap!==false;RPT.hojaHist=h.opts.hojaHist!==false;RPT.histId=h.id}
+async function rptRehacer(id,fmt){const h=rptEntrada(id);if(!h)return;const snap=JSON.stringify(RPT);
+ try{rptAplica(h);await (fmt==='pdf'?rptDescargarPDF():rptDescargar())}finally{const o=JSON.parse(snap);Object.keys(RPT).forEach(k=>delete RPT[k]);Object.assign(RPT,o)}}
+function rptAbrir(id){const h=rptEntrada(id);if(!h)return;rptAplica(h);RPT.vista='nuevo';rptVer();toast('Cargué “'+h.titulo+'”: podés ajustarlo y volver a descargarlo')}
+function rptBorrar(id){if(!confirm('¿Sacar este reporte del historial?'))return;DB.cfg.reportes=(DB.cfg.reportes||[]).filter(x=>x.id!==id);if(RPT.histId===id)RPT.histId=null;guardar();rptVer()}
+
+function repChip(k,v,n,txt){const on=RPT.crit[k].includes(v);return `<button type="button" class="cb ${on?'on':''}" onclick="rptToggle('${k}','${js(v)}')" title="${esc(v)}">${esc(txt||v)} <b>${n}</b></button>`}
 function paneRep(){
- const ejs=[...new Set(histTodo().map(h=>h.e))].sort(),S=RPT.sel.map(n=>({n,r:nomDe(n)||{},R:rptRegs(n)}));
- const cont=(k,e)=>S.reduce((a,x)=>a+x.R.filter(r=>r.est===e).length,0);
- const uniq=k=>[...new Set(DB.nom.map(p=>p[k]).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));
- const lid=DB.eq.slice().sort((a,b)=>a.lider.localeCompare(b.lider,'es'));
+ const H=DB.cfg.reportes||[];
+ return `<div class="tabs" style="margin-bottom:16px"><button class="${RPT.vista==='nuevo'?'on':''}" onclick="RPT.vista='nuevo';rptVer()">Nuevo reporte</button><button class="${RPT.vista==='hist'?'on':''}" onclick="RPT.vista='hist';rptVer()">Reportes pedidos <span class="chip c-gris" style="margin-left:4px">${H.length}</span></button></div>`+(RPT.vista==='hist'?repHist():repNuevo())}
+function repHist(){
+ const H=DB.cfg.reportes||[];if(!H.length)return `<div class="card"><div class="card-b"><div class="vacio"><b>Todavía no pediste ningún reporte</b>Cada vez que descargues uno queda acá, para volver a bajarlo o usarlo de base.</div></div></div>`;
+ return `<div class="sub2" style="margin-bottom:10px">Los últimos ${H.length} reportes. Al volver a descargar, se arma con los datos de hoy.</div>`+H.map(h=>`<div class="card" style="margin-bottom:12px"><div class="card-b" style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+  <div style="width:44px;height:44px;border-radius:50%;background:var(--niebla);display:flex;align-items:center;justify-content:center;font-size:20px">📄</div>
+  <div style="flex:1;min-width:260px"><div style="font-weight:700;font-size:15px">${esc(h.titulo)}</div>
+   <div class="sub2">Solicitado el <b>${fcorta(h.fecha)}</b> · ${h.todos?'toda la nómina':h.n+' persona'+(h.n===1?'':'s')}${h.para?' · pedido de '+esc(h.para):''}${h.ultima&&h.ultima!==h.fecha?' · última descarga '+fcorta(h.ultima):''}</div>
+   <div class="sub2" style="margin-top:2px">${(h.opts.ejs||[]).length?'ejercicios '+h.opts.ejs.join(', '):'todos los ejercicios'} · ${(h.formatos||[]).map(f=>f==='pdf'?'PDF':'Excel').join(' y ')}</div></div>
+  <div class="acts" style="margin:0"><button class="btn" onclick="rptRehacer('${h.id}','xlsx')">⬇ Excel</button><button class="btn g" onclick="rptRehacer('${h.id}','pdf')">⬇ PDF</button><button class="btn n" onclick="rptAbrir('${h.id}')">Abrir y ajustar</button><button class="btn n" title="Sacar del historial" onclick="rptBorrar('${h.id}')">✕</button></div></div></div>`).join('')}
+function repNuevo(){
+ const ejs=[...new Set(histTodo().map(h=>h.e))].sort(),C=RPT.crit,cand=rptCand(),S=RPT.sel.map(n=>({n,r:nomDe(n)||{},R:rptRegs(n)}));
+ const cont=e=>S.reduce((a,x)=>a+x.R.filter(r=>r.est===e).length,0),lid=DB.eq.slice().sort((a,b)=>a.lider.localeCompare(b.lider,'es'));
+ /* conteos que respetan los otros filtros: así ves cuánta gente queda al combinar */
+ const cntBy=(k,f)=>{const m={};rptFiltrar(k).forEach(p=>{const v=f(p);if(v)m[v]=(m[v]||0)+1});return m};
+ const cs=cntBy('soc',p=>p.sociedad),ca=cntBy('area',p=>p.unidad),cv=cntBy('vert',p=>p.vn);
+ const areas=Object.keys(ca).concat(C.area.filter(a=>!ca[a])).filter((a,i,A)=>A.indexOf(a)===i).filter(a=>!RPT.qArea||nomKey(a).includes(nomKey(RPT.qArea))||C.area.includes(a)).sort((a,b)=>(C.area.includes(b)-C.area.includes(a))||((ca[b]||0)-(ca[a]||0))||a.localeCompare(b,'es'));
+ const desm=new Set(RPT.desm),nSel=cand.filter(p=>!desm.has(p.nombre)).length;
+ const activos=[C.lid.length?'equipo de '+C.lid.length+(C.lid.length===1?' líder':' líderes'):'',C.soc.length?C.soc.length+' sociedad'+(C.soc.length===1?'':'es'):'',C.area.length?C.area.length+' área'+(C.area.length===1?'':'s'):'',C.vert.length?C.vert.length+' vertical'+(C.vert.length===1?'':'es'):''].filter(Boolean);
  return `
- <div class="grid g2" style="align-items:start">
-  <div class="card"><div class="card-h"><h2>1 · ¿De quiénes?</h2><div class="n">sumá personas de a una o por grupo</div></div><div class="card-b">
-   <div class="f"><label>Una persona (nombre, apellido o legajo)</label><div style="display:flex;gap:8px"><input class="fi" id="rptP" list="dlRep" placeholder="Ej: Risso" style="flex:1" onkeydown="if(event.key==='Enter')rptPersona(this.value)"><button class="btn" onclick="rptPersona(document.getElementById('rptP').value)">Sumar</button></div>
+ <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:8px"><h3 style="margin:0;font-size:16px">1 · Elegí a quiénes</h3><span class="sub2">Podés usar uno solo o combinarlos: por ejemplo <b>Sociedad Amauta</b> + <b>Área Cuentas</b> trae solo a los que cumplen las dos cosas.</span></div>
+ <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:16px;align-items:start">
+  <div class="card"><div class="card-h"><h2>👥 Líder o gerente</h2><div class="n">su equipo</div></div><div class="card-b">
+   <div style="display:flex;gap:8px"><input class="fi" id="rptL" list="dlLid2" placeholder="Ej: Roberto Gianneschi, Nicolás Sesnich" style="flex:1" onkeydown="if(event.key==='Enter')rptAddLid(this.value)"><button class="btn" onclick="rptAddLid(document.getElementById('rptL').value)">Agregar</button></div>
+   <datalist id="dlLid2">${lid.map(e=>`<option value="${esc(e.lider)}">${esc(e.pos||'')} · ${e.nd} directos · ${e.n-e.nd} indirectos</option>`).join('')}</datalist>
+   ${C.lid.length?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">${C.lid.map(l=>{const e=DB.eq.find(x=>x.lider===l)||{};return `<span class="cb on" style="cursor:default">${esc(l)} <span class="sub2" style="opacity:.8">· ${esc(e.pos||'')} · ${e.nd||0}+${(e.n||0)-(e.nd||0)}</span> <button type="button" title="Sacar" style="border:none;background:none;cursor:pointer;font-size:13px;color:inherit" onclick="rptQuitarLid('${js(l)}')">✕</button></span>`}).join('')}</div>`:'<div class="sub2" style="margin-top:8px">Escribí el nombre (alcanza con un apellido o apodo) y elegí al líder o gerente.</div>'}
+   <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:12px">${Object.entries(MODOS).map(([k,t])=>`<button type="button" class="cb ${RPT.modo===k?'on':''}" onclick="rptModo('${k}')">${t.charAt(0).toUpperCase()+t.slice(1)}</button>`).join('')}</div>
+   <label class="check" style="margin-top:8px;font-size:12px"><input type="checkbox" ${RPT.conLider?'checked':''} onchange="RPT.conLider=this.checked;RPT.desm=[];rptVer()"> Incluir también al líder</label></div></div>
+  <div class="card"><div class="card-h"><h2>🏢 Sociedad</h2><div class="n">una o varias</div></div><div class="card-b"><div style="display:flex;gap:6px;flex-wrap:wrap">${Object.entries(cs).concat(C.soc.filter(x=>!cs[x]).map(x=>[x,0])).sort((a,b)=>b[1]-a[1]).map(([k,n])=>repChip('soc',k,n,ab(k))).join('')||'<span class="sub2">Sin resultados con los otros filtros</span>'}</div></div></div>
+  <div class="card"><div class="card-h"><h2>🧩 Área</h2><div class="n">${C.area.length?C.area.length+' elegida'+(C.area.length===1?'':'s'):'una o varias'}</div></div><div class="card-b">
+   <input class="fi" placeholder="Buscar un área…" value="${esc(RPT.qArea)}" oninput="RPT.qArea=this.value;clearTimeout(window._tqa);window._tqa=setTimeout(()=>{rptVer();const i=document.querySelector('#pn-pe-3 input[placeholder^=\\'Buscar un área\\']');if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length)}},250)" style="margin-bottom:10px">
+   <div style="display:flex;gap:6px;flex-wrap:wrap;max-height:170px;overflow:auto;padding-right:4px">${areas.map(a=>repChip('area',a,ca[a]||0)).join('')||'<span class="sub2">No hay áreas con esos filtros</span>'}</div></div></div>
+  <div class="card"><div class="card-h"><h2>🎯 Vertical</h2><div class="n">una o varias</div></div><div class="card-b"><div style="display:flex;gap:6px;flex-wrap:wrap">${Object.entries(cv).concat(C.vert.filter(x=>!cv[x]).map(x=>[x,0])).sort((a,b)=>b[1]-a[1]).map(([k,n])=>repChip('vert',k,n)).join('')||'<span class="sub2">Sin resultados con los otros filtros</span>'}</div></div></div>
+ </div>
+ ${rptActivo()?`<div class="card" style="margin-top:14px;border-color:var(--celeste)"><div class="card-h"><h2>Vista previa · ${cand.length} persona${cand.length===1?'':'s'}</h2><div class="n">${activos.join(' + ')} · destildá a quien no quieras</div>
+   <div style="display:flex;gap:6px"><button class="btn n s" onclick="rptDmTodos(true)">Tildar todos</button><button class="btn n s" onclick="rptDmTodos(false)">Destildar todos</button><button class="btn n s" onclick="rptLimpiaCrit()">Limpiar filtros</button></div></div>
+  <div class="card-b flush">${cand.length?`<div class="scroll" style="max-height:340px"><table><thead><tr><th style="width:36px"></th><th>Persona</th><th>Puesto</th><th>Sociedad</th><th>Área</th><th>Líder</th></tr></thead>
+   <tbody>${cand.map(p=>`<tr><td><input type="checkbox" ${desm.has(p.nombre)?'':'checked'} onchange="rptDm('${js(p.nombre)}',this.checked)"></td><td class="nom">${esc(p.nombre)}${rptHay(p.nombre)?' <span class="chip c-gris">ya está</span>':''}</td><td class="sub2">${esc(p.posicion||'—')}</td><td class="sub2">${esc(ab(p.sociedad))}</td><td class="sub2">${esc(p.unidad||'—')}</td><td class="sub2">${esc(p.liderC||'—')}</td></tr>`).join('')}</tbody></table></div>`:'<div class="vacio"><b>Con esa combinación no hay nadie</b>Probá sacar algún filtro.</div>'}</div>
+  <div class="card-b" style="border-top:1px solid var(--linea-2);display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button class="btn" id="rptSumar" ${nSel?'':'disabled'} onclick="rptSumarPrev()">Sumar ${nSel} persona${nSel===1?'':'s'} al reporte</button><span class="sub2">Después podés seguir sumando otros grupos al mismo reporte.</span></div></div>`:''}
+ <div class="card" style="margin-top:14px"><div class="card-h"><h2>Sumar directo</h2><div class="n">sin filtros</div></div><div class="card-b"><div class="grid g3" style="gap:16px;align-items:start">
+   <div class="f"><label>Una persona</label><div style="display:flex;gap:8px"><input class="fi" id="rptP" list="dlRep" placeholder="Nombre, apellido o legajo" style="flex:1;min-width:0" onkeydown="if(event.key==='Enter')rptPersona(this.value)"><button class="btn g" onclick="rptPersona(document.getElementById('rptP').value)">Sumar</button></div>
     <datalist id="dlRep">${DB.nom.slice().sort((a,b)=>a.nombre.localeCompare(b.nombre,'es')).map(p=>`<option value="${esc(p.nombre)}">${esc(p.posicion||'')} · legajo ${esc(p.legajo||'')}</option>`).join('')}</datalist></div>
-   <div class="f" style="margin-top:14px"><label>El equipo de un líder</label>
-    <input class="fi" id="rptL" list="dlLid2" placeholder="Ej: nacho ambros, roberto gianneschi, maxi auad" oninput="rptLinfo(this.value)" onkeydown="if(event.key==='Enter')rptLider(this.value)">
-    <div class="sub2" id="rptLinfo" style="margin:6px 0 8px;min-height:16px"></div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${[['todos','Directos e indirectos'],['dir','Solo directos'],['ind','Solo indirectos']].map(([k,t])=>`<button type="button" class="cb ${RPT.modo===k?'on':''}" onclick="RPT.modo='${k}';PS.sub=3;{const v=(document.getElementById('rptL')||{}).value;RPT.lv=v};refresh()">${t}</button>`).join('')}</div>
-    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button class="btn" onclick="rptLider(document.getElementById('rptL').value)">Sumar el equipo</button>
-     <label class="check" style="font-size:12px"><input type="checkbox" ${RPT.conLider?'checked':''} onchange="RPT.conLider=this.checked"> Incluir también al líder</label></div>
-    <datalist id="dlLid2">${lid.map(e=>`<option value="${esc(e.lider)}">${esc(e.pos||'')} · ${e.nd} directos · ${e.n-e.nd} indirectos</option>`).join('')}</datalist></div>
-   <div class="f" style="margin-top:14px"><label>Por área, vertical o sociedad</label><div style="display:flex;gap:8px;flex-wrap:wrap">
-    <select class="fi" id="rptG" style="flex:1;min-width:200px"><option value="">Elegí…</option>
-     <optgroup label="Área">${uniq('unidad').map(x=>`<option value="unidad|${esc(x)}">${esc(x)}</option>`).join('')}</optgroup>
-     <optgroup label="Vertical">${uniq('vn').map(x=>`<option value="vn|${esc(x)}">${esc(x)}</option>`).join('')}</optgroup>
-     <optgroup label="Sociedad">${uniq('sociedad').map(x=>`<option value="sociedad|${esc(x)}">${esc(x)}</option>`).join('')}</optgroup></select>
-    <button class="btn g" onclick="{const v=document.getElementById('rptG').value.split('|');rptGrupo(v[0],v.slice(1).join('|'))}">Sumar grupo</button></div></div>
-   <div class="f" style="margin-top:14px"><label>Toda la empresa</label><button class="btn g" onclick="rptTodos()">Toda la nómina (${DB.nom.length} personas)</button><div class="hint">Para cuando lo pide la dirección: trae a todos los colaboradores.</div></div>
-   <details style="margin-top:14px"><summary style="cursor:pointer;font-weight:600;font-size:12.5px">Pegar una lista de nombres</summary><textarea id="rptPeg" style="width:100%;min-height:110px;margin-top:8px;padding:8px 10px;border:1px solid var(--linea);border-radius:10px" placeholder="Apellido&#9;Nombre (una persona por línea, tal cual del Excel)"></textarea>
-    <button class="btn g s" style="margin-top:8px" onclick="rptPegar()">Detectar y sumar</button></details>
-  </div></div>
-  <div class="card"><div class="card-h"><h2>2 · Qué incluir</h2><div class="n">todo lo que no tildes queda afuera</div></div><div class="card-b">
-   <div class="f"><label>Pedido de (aparece en el encabezado)</label><input class="fi" value="${esc(RPT.para)}" placeholder="Ej: Maximiliano Auad" oninput="RPT.para=this.value"></div>
-   <div class="f" style="margin-top:12px"><label>Ejercicios <span class="sub2" style="font-weight:400">· ${RPT.ejs.length?RPT.ejs.length+' elegido'+(RPT.ejs.length===1?'':'s'):'todos'}</span></label>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px"><button class="btn n s" onclick="RPT.ejs=[];PS.sub=3;refresh()">Todos</button><button class="btn n s" onclick="RPT.ejs=['${ejs[ejs.length-1]}'];PS.sub=3;refresh()">Solo el último</button><button class="btn n s" onclick="RPT.ejs=${JSON.stringify(ejs.slice(-3)).replace(/"/g,"'")};PS.sub=3;refresh()">Últimos 3</button></div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap">${ejs.slice().reverse().map(e=>`<button type="button" class="cb ${!RPT.ejs.length||RPT.ejs.includes(e)?'on':''}" onclick="rptEj('${e}')">${e}</button>`).join('')}</div></div>
-   <div style="display:flex;gap:14px;flex-wrap:wrap;margin:14px 0 6px">${['Finalizada','En curso','Pendiente'].map(e=>`<label class="check"><input type="checkbox" ${RPT.est[e]?'checked':''} onchange="RPT.est['${e}']=this.checked;PS.sub=3;refresh()"> ${e}</label>`).join('')}</div>
-   <label class="check" style="font-size:12.5px"><input type="checkbox" ${RPT.sinCap?'checked':''} onchange="RPT.sinCap=this.checked"> Incluir a las personas que todavía no tienen capacitaciones</label>
-   <label class="check" style="font-size:12.5px;margin-top:6px"><input type="checkbox" ${RPT.hojaHist?'checked':''} onchange="RPT.hojaHist=this.checked;PS.sub=3;refresh()"> Incluir la hoja “Historial” (un bloque por persona)${S.length>80&&RPT.hojaHist?' <span style="color:var(--naranja)">· con tantas personas queda muy larga: podés dejar solo “Datos”</span>':''}</label>
-   <div class="aviso" style="margin-top:14px">Lo bajás en Excel o en PDF. El Excel trae ${RPT.hojaHist?'dos hojas: <b>Historial</b> (un bloque por persona, ejercicio por ejercicio) y <b>Datos</b>':'una hoja: <b>Datos</b>'} (el listado con filtros).</div>
-   <div class="acts" style="margin-top:14px"><button class="btn" ${S.length?'':'disabled'} onclick="rptDescargar()">⬇ Descargar Excel${S.length?' ('+S.length+' persona'+(S.length===1?'':'s')+')':''}</button>
-    <button class="btn g" ${S.length?'':'disabled'} onclick="rptDescargarPDF()">⬇ Descargar PDF</button></div>
-  </div></div></div>
- <div class="card" style="margin-top:14px"><div class="card-h"><h2>Personas del reporte</h2><div class="n">${S.length} · ${cont('','Finalizada')} finalizadas${cont('','En curso')+cont('','Pendiente')?' · '+(cont('','En curso')+cont('','Pendiente'))+' en curso o pendientes':''}</div>${S.length?'<button class="btn n s" onclick="rptLimpiar()">Quitar todas</button>':''}</div>
-  <div class="card-b flush">${S.length?`<div class="scroll" style="max-height:440px"><table><thead><tr><th>Persona</th><th>Puesto</th><th>Líder</th><th class="r">Finalizadas</th><th class="r">En curso</th><th class="r">Pendientes</th><th class="r">Último ejercicio</th><th></th></tr></thead>
+   <div class="f"><label>Pegar una lista</label><textarea id="rptPeg" style="width:100%;min-height:62px;padding:8px 10px;border:1px solid var(--linea);border-radius:10px" placeholder="Apellido&#9;Nombre, una persona por línea"></textarea><button class="btn g s" style="margin-top:6px" onclick="rptPegar()">Detectar y sumar</button></div>
+   <div class="f"><label>Toda la empresa</label><button class="btn g" onclick="rptTodos()">Toda la nómina (${DB.nom.length})</button><div class="hint">Para cuando lo pide la dirección.</div></div></div></div></div>
+ <h3 style="margin:22px 0 8px;font-size:16px">2 · Revisá el reporte</h3>
+ <div class="card"><div class="card-h"><h2>Personas del reporte</h2><div class="n">${S.length} · ${cont('Finalizada')} finalizadas${cont('En curso')+cont('Pendiente')?' · '+(cont('En curso')+cont('Pendiente'))+' en curso o pendientes':''}</div>${S.length?'<button class="btn n s" onclick="rptLimpiar()">Quitar todas</button>':''}</div>
+  <div class="card-b flush">${S.length?`<div class="scroll" style="max-height:380px"><table><thead><tr><th>Persona</th><th>Puesto</th><th>Líder</th><th class="r">Finalizadas</th><th class="r">En curso</th><th class="r">Pendientes</th><th class="r">Último ejercicio</th><th></th></tr></thead>
    <tbody>${S.map(x=>`<tr><td class="nom">${esc(x.n)}</td><td class="sub2">${esc(x.r.posicion||'—')}</td><td class="sub2">${esc(x.r.liderC||'—')}</td>
     <td class="r num">${x.R.filter(r=>r.est==='Finalizada').length}</td><td class="r num">${x.R.filter(r=>r.est==='En curso').length||'—'}</td><td class="r num">${x.R.filter(r=>r.est==='Pendiente').length||'—'}</td>
     <td class="r num">${x.R.length?x.R[0].ej:'—'}</td><td class="r"><button class="btn n s" title="Sacar del reporte" onclick="rptQuitar('${js(x.n)}')">✕</button></td></tr>`).join('')}</tbody></table></div>`
-   :'<div class="vacio"><b>Todavía no elegiste a nadie</b>Sumá una persona, el equipo de un líder o un grupo de la nómina.</div>'}</div></div>`}
+   :'<div class="vacio"><b>Todavía no sumaste a nadie</b>Elegí un líder, una sociedad, un área o una vertical, revisá la vista previa y sumalos.</div>'}</div></div>
+ <h3 style="margin:22px 0 8px;font-size:16px">3 · Qué incluir y descargar</h3>
+ <div class="card"><div class="card-b"><div class="grid g2" style="align-items:start;gap:22px">
+  <div><div class="f"><label>Título del reporte <span class="sub2" style="font-weight:400">· así queda en el historial</span></label><input class="fi" value="${esc(RPT.titulo)}" placeholder="${esc(rptTituloAuto())}" oninput="RPT.titulo=this.value"></div>
+   <div class="f" style="margin-top:12px"><label>Pedido de <span class="sub2" style="font-weight:400">· aparece en el encabezado</span></label><input class="fi" value="${esc(RPT.para)}" placeholder="Ej: Maximiliano Auad" oninput="RPT.para=this.value"></div></div>
+  <div><div class="f"><label>Ejercicios <span class="sub2" style="font-weight:400">· ${RPT.ejs.length?RPT.ejs.length+' elegido'+(RPT.ejs.length===1?'':'s'):'todos'}</span></label>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px"><button class="btn n s" onclick="RPT.ejs=[];rptVer()">Todos</button><button class="btn n s" onclick="RPT.ejs=['${ejs[ejs.length-1]}'];rptVer()">Solo el último</button><button class="btn n s" onclick="RPT.ejs=${JSON.stringify(ejs.slice(-3)).replace(/"/g,"'")};rptVer()">Últimos 3</button></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">${ejs.slice().reverse().map(e=>`<button type="button" class="cb ${!RPT.ejs.length||RPT.ejs.includes(e)?'on':''}" onclick="rptEj('${e}')">${e}</button>`).join('')}</div></div>
+   <div style="display:flex;gap:14px;flex-wrap:wrap;margin:14px 0 6px">${['Finalizada','En curso','Pendiente'].map(e=>`<label class="check"><input type="checkbox" ${RPT.est[e]?'checked':''} onchange="RPT.est['${e}']=this.checked;rptVer()"> ${e}</label>`).join('')}</div>
+   <label class="check" style="font-size:12.5px"><input type="checkbox" ${RPT.sinCap?'checked':''} onchange="RPT.sinCap=this.checked"> Incluir a las personas que todavía no tienen capacitaciones</label>
+   <label class="check" style="font-size:12.5px;margin-top:6px"><input type="checkbox" ${RPT.hojaHist?'checked':''} onchange="RPT.hojaHist=this.checked;rptVer()"> Incluir la hoja “Historial” en el Excel${S.length>80&&RPT.hojaHist?' <span style="color:var(--naranja)">· con tantas personas queda muy larga: podés dejar solo “Datos”</span>':''}</label></div></div>
+  <div class="acts" style="margin-top:18px"><button class="btn" ${S.length?'':'disabled'} onclick="rptDescargar()">⬇ Descargar Excel${S.length?' ('+S.length+' persona'+(S.length===1?'':'s')+')':''}</button><button class="btn g" ${S.length?'':'disabled'} onclick="rptDescargarPDF()">⬇ Descargar PDF</button></div>
+  <div class="sub2" style="margin-top:8px">Cada descarga queda guardada en <b>Reportes pedidos</b>, con la fecha de hoy.</div></div></div>`}
 /* ═════ PDF del reporte (mismo contenido y estilo que el Excel) ═════ */
 async function rptCargarPDF(){
  const cargar=u=>new Promise((ok,ko)=>{const t=document.createElement('script');t.src=u;t.onload=ok;t.onerror=()=>ko(new Error('No se pudo cargar la librería de PDF: revisá la conexión'));document.head.appendChild(t)});
@@ -4873,8 +4933,8 @@ async function rptDescargarPDF(){
    y=doc.lastAutoTable.finalY+8});
   const N=doc.getNumberOfPages();
   for(let i=1;i<=N;i++){doc.setPage(i);T('FYO · Capacitación y Desarrollo',M,PH-8,7,'normal',GRI);T(i+' / '+N,W-M,PH-8,7,'normal',GRI,{align:'right'})}
-  const nom='Historial_capacitaciones'+(RPT.para.trim()?'_'+RPT.para.trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^\w]+/g,'_'):'')+'_'+HOY+'.pdf';
-  doc.save(nom);toast('✓ Descargado: '+nom)
+  const nom=rptNombreArchivo('pdf');
+  doc.save(nom);toast('✓ Descargado: '+nom);rptReg('pdf')
  }catch(e){console.error(e);toast('No se pudo armar el PDF: '+(e.message||e))}}
 async function rptCargarXL(){if(window.ExcelJS)return;await new Promise((ok,ko)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js';s.onload=ok;s.onerror=()=>ko(new Error('No se pudo cargar la librería de Excel: revisá la conexión'));document.head.appendChild(s)})}
 async function rptDescargar(){
@@ -4931,8 +4991,8 @@ async function rptDescargar(){
   let k=2;S.forEach(x=>x.R.forEach(q=>{[x.n,x.r.legajo||'',q.ej,q.cap,q.prov||'—',q.est].forEach((v,j)=>{const c=d.getCell(k,j+1);c.value=v;c.font=fnt(10);c.border={bottom:fino};c.alignment={vertical:'middle',indent:1,horizontal:(j===1||j===2)?'center':'left',wrapText:j===3};if(k%2)c.fill=fill('EEF4F6')});d.getRow(k).height=22;k++}));
   d.autoFilter={from:'A1',to:'F'+Math.max(2,k-1)};d.pageSetup={orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:0};d.pageSetup.printTitlesRow='1:1';
   const buf=await wb.xlsx.writeBuffer(),bl=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
-  const nom='Historial_capacitaciones'+(RPT.para.trim()?'_'+RPT.para.trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^\w]+/g,'_'):'')+'_'+HOY+'.xlsx',a=document.createElement('a');a.href=URL.createObjectURL(bl);a.download=nom;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1500);
-  toast('✓ Descargado: '+nom)
+  const nom=rptNombreArchivo('xlsx'),a=document.createElement('a');a.href=URL.createObjectURL(bl);a.download=nom;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1500);
+  toast('✓ Descargado: '+nom);rptReg('xlsx')
  }catch(e){console.error(e);toast('No se pudo armar el Excel: '+(e.message||e))}}
 function paneGrupo(){
  const dim=PS.dim,key={vn:'vn',un:'un',lider:'lider',soc:'soc'}[dim],dotKey={vn:'vn',un:'unidad',lider:'liderC',soc:'sociedad'}[dim];
@@ -5687,37 +5747,319 @@ function exBajar(hojas,nombre){
  if(typeof XLSX==='undefined'){toast('No se pudo cargar la librería de Excel: hace falta conexión a internet');return}
  const wb=XLSX.utils.book_new();hojas.forEach(([n,r])=>XLSX.utils.book_append_sheet(wb,exSheet(r),n.slice(0,31)));
  XLSX.writeFile(wb,nombre+'.xlsx');toast('Excel descargado')}
-function exPlanXls(){const d=exPlan();exBajar([['Capacitaciones',d.caps],['Participantes',d.part],['Por persona',d.personas]],'U-fyo-Plan-'+exTag()+(EX.solo?'-realizadas':''))}
-function exBecasXls(){const d=exBecas();exBajar([['Becas',d.becas],['Pagos por mes',d.pagos]],'U-fyo-Becas-'+exTag())}
-function exIdiXls(){const d=exIdiomas();exBajar([['Alumnos',d.alumnos],['Facturas',d.facturas],['Personas por factura',d.personas]],'U-fyo-Idiomas-'+exTag())}
-function exFactXls(){exBajar([['Facturación',exFact()]],'U-fyo-Facturacion-'+exTag())}
-function exTodoXls(){
- const p=exPlan(),b=exBecas(),i=exIdiomas(),ejs=exEjs();
- const presu=[];ejs.forEach(ej=>exConEj(ej,()=>{const S=saldos();partidas().forEach(c=>presu.push({'Ejercicio':ej,'Sociedad':c.soc,'Cuenta':c.cta,'Descripción':c.desc,'Área':c.area,'Presupuesto base':exNum(c.base),'DI aprobadas':exNum(c.di),'Total con DI':exNum(c.asignado),'Real Gestión':exNum(c.realG),'Cargado en la app':exNum((S[c.id]||{}).usado)}))}));
- exBajar([['Capacitaciones',p.caps],['Participantes',p.part],['Por persona',p.personas],['Becas',b.becas],['Pagos de becas',b.pagos],['Alumnos idiomas',i.alumnos],['Facturas idiomas',i.facturas],['Personas por factura',i.personas],['Facturación',exFact()],['Presupuesto',presu],
-  ['Proveedores',DB.prov.map(x=>({'Proveedor':x.nom,'Contacto':x.contacto||'','Mail':x.mail||'','Teléfono':x.tel||'','CUIT':x.cuit||''}))],
-  ['Nómina',DB.nom.map(x=>({'Legajo':x.legajo,'Colaborador':x.nombre,'Posición':x.posicion,'Área':x.unidad,'Vertical':x.vn,'Sociedad':x.sociedad,'Líder':x.liderC||x.lider,'Ingreso':x.ingreso,'Ciudad':x.ciudad}))]],'U-fyo-Todo-'+exTag())}
+/* ═════ Exportar: tarjetas que se abren con sus opciones; todos los Excel con el mismo formato visual ═════ */
+const XL={FU:'Poppins',fnt:(sz,b,c,i)=>({name:'Poppins',size:sz,bold:!!b,italic:!!i,color:{argb:'FF'+(c||'1E2A2E')}}),fill:c=>({type:'pattern',pattern:'solid',fgColor:{argb:'FF'+c}}),
+ fino:{style:'thin',color:{argb:'FFD5DFE2'}},blanco:{style:'thin',color:{argb:'FFFFFFFF'}}};
+const xlLogo=()=>{const l=(document.querySelector('.login-logo')||document.querySelector('.logo-mob')||{}).src;return l&&/^data:image\/png/.test(l)?l:null};
+const xlDD=iso=>{const p=String(iso||'').slice(0,10).split('-');return p.length===3?p[2]+'/'+p[1]+'/'+p[0]:''};
+const xlFecha=iso=>iso&&/^\d{4}-\d{2}-\d{2}/.test(iso)?new Date(iso.slice(0,10)+'T12:00:00'):null;
+async function xlLibro(){await rptCargarXL();const wb=new ExcelJS.Workbook();wb.creator='FYO · Capacitación y Desarrollo';return wb}
+function xlHoja(wb,nombre,c0,c1,anchos,titulo,sub){
+ const h=wb.addWorksheet(nombre.slice(0,31),{views:[{showGridLines:false}],properties:{tabColor:{argb:'FF008EAA'}}});
+ anchos.forEach((w,i)=>h.getColumn(i+1).width=w);h.getRow(1).height=14;h.getRow(2).height=30;
+ const lg=xlLogo();if(lg){const id=wb.addImage({base64:lg,extension:'png'});h.addImage(id,{tl:{col:c0-1,row:1},ext:{width:64,height:30}})}
+ const t=h.getCell(4,c0);t.value=titulo;t.font=XL.fnt(18,true,'008EAA');h.getRow(4).height=30;const q=h.getCell(5,c0);q.value=sub;q.font=XL.fnt(10,false,'5B6B70');
+ for(let c=c0;c<=c1;c++)h.getCell(6,c).border={bottom:{style:'medium',color:{argb:'FF008EAA'}}};h.getRow(6).height=8;
+ h.pageSetup={orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:0,margins:{left:.4,right:.4,top:.5,bottom:.5,header:.3,footer:.3}};h.headerFooter.oddFooter='&L&"Poppins"FYO · Capacitación y Desarrollo&R&"Poppins"&P / &N';return h}
+function xlCards(h,r,cards,c0){cards.forEach(([t,v,n,col,fmt,tam],i)=>{const c=c0+i,A=h.getCell(r,c),B=h.getCell(r+1,c),C=h.getCell(r+2,c);
+ [A,B,C].forEach(x=>{x.fill=XL.fill('EEF4F6');x.alignment={horizontal:'left',vertical:'middle',indent:1};x.border={left:{style:'thick',color:{argb:'FFFFFFFF'}},right:{style:'thick',color:{argb:'FFFFFFFF'}}}});
+ A.value=t;A.font=XL.fnt(9,false,'5B6B70');B.value=v;B.font=XL.fnt(tam||(fmt&&fmt.includes('$')?15:20),true,col||'008EAA');B.numFmt=fmt||'#,##0';C.value=n;C.font=XL.fnt(8,false,'5B6B70')});
+ h.getRow(r).height=22;h.getRow(r+1).height=38;h.getRow(r+2).height=20;return r+4}
+function xlBloque(h,r,txt,color,der,c0,c1){for(let c=c0;c<=c1;c++)h.getCell(r,c).fill=XL.fill(color);
+ const t=h.getCell(r,c0);t.value=txt;t.font=XL.fnt(13,true,'FFFFFF');t.alignment={vertical:'middle',indent:1};const d=h.getCell(r,c1);d.value=der||'';d.font=XL.fnt(10,true,'FFFFFF');d.alignment={horizontal:'right',vertical:'middle',indent:1};h.getRow(r).height=32;return r+1}
+function xlGrid(h,r,labs,vals,fmts,c0,pintar){labs.forEach((l,i)=>{const c=c0+i,a=h.getCell(r,c),b=h.getCell(r+1,c);[a,b].forEach(x=>{x.fill=XL.fill('EEF4F6');x.alignment={horizontal:'left',vertical:'middle',indent:1,wrapText:true};x.border={left:XL.blanco,right:XL.blanco}});
+ a.value=l;a.font=XL.fnt(8,false,'5B6B70');b.value=vals[i];b.font=XL.fnt(10,true);if(fmts&&fmts[i])b.numFmt=fmts[i];if(pintar&&pintar[i]){b.fill=XL.fill(pintar[i][0]);b.font=XL.fnt(10,true,pintar[i][1])}});
+ h.getRow(r).height=22;h.getRow(r+1).height=30;return r+2}
+function xlNota(h,r,txt,c0,c1){h.mergeCells(r,c0,r,c1);const n=h.getCell(r,c0);n.value=txt;n.font=XL.fnt(9,false,'5B6B70',true);n.alignment={vertical:'middle',indent:1,wrapText:true};h.getRow(r).height=Math.max(22,Math.ceil(txt.length/150)*14+6);return r+1}
+function xlTab(h,r,heads,rows,c0,o){o=o||{};
+ heads.forEach((t,i)=>{const c=h.getCell(r,c0+i),al=(o.al&&o.al[i])||'left';c.value=t;c.font=XL.fnt(9,true,'008EAA');c.alignment={horizontal:al,vertical:'middle',indent:al==='left'?1:0};c.border={bottom:{style:'thin',color:{argb:'FF008EAA'}}}});h.getRow(r).height=22;r++;
+ if(!rows.length){const c=h.getCell(r,c0);c.value=o.vacio||'Sin datos';c.font=XL.fnt(10,false,'5B6B70',true);c.alignment={vertical:'middle',indent:1};heads.forEach((_,i)=>h.getCell(r,c0+i).border={bottom:XL.fino});h.getRow(r).height=24;r++}
+ rows.forEach((row,k)=>{row.forEach((v,i)=>{const c=h.getCell(r,c0+i),al=(o.al&&o.al[i])||'left';c.value=v;c.font=XL.fnt(9.5,i===0);c.alignment={horizontal:al,vertical:'middle',indent:al==='left'?1:0};c.border={bottom:XL.fino};if(o.fmt&&o.fmt[i])c.numFmt=o.fmt[i];
+  const pc=o.paint&&o.paint(k,i,v);if(pc){if(pc[0])c.fill=XL.fill(pc[0]);c.font=XL.fnt(9.5,true,pc[1])}});h.getRow(r).height=20;r++});return r}
+/* hoja plana con filtros: una fila por registro, todas las columnas, para filtrar y cruzar */
+function xlPlana(wb,nombre,rows,o){o=o||{};const L=wb.addWorksheet(nombre.slice(0,31),{views:[{state:'frozen',ySplit:1,showGridLines:false}]}),keys=Object.keys(rows[0]||{});
+ if(!keys.length){L.getCell(1,1).value='Sin datos para esta selección';L.getCell(1,1).font=XL.fnt(10,false,'5B6B70',true);return L}
+ const dinero=k=>/^(Monto|Costo|Cubrimos|Pagado|Falta|A pagar|Pasa al|Último monto|Presupuesto base|Ejecutado|Real \(|Disponible|Comprometido)/.test(k)||(o.dinero||[]).includes(k);
+ keys.forEach((k,i)=>{const mx=Math.max(k.length+3,...rows.slice(0,200).map(r=>String(r[k]==null?'':r[k]).length+2));L.getColumn(i+1).width=Math.min(o.tope||46,Math.max(10,mx));
+  const c=L.getCell(1,i+1);c.value=k;c.font=XL.fnt(10,true,'FFFFFF');c.fill=XL.fill('0B4855');c.alignment={vertical:'middle',indent:1,horizontal:'left',wrapText:true}});L.getRow(1).height=28;
+ rows.forEach((r,j)=>{const row=j+2;keys.forEach((k,i)=>{let v=r[k];const c=L.getCell(row,i+1);c.font=XL.fnt(10);c.border={bottom:XL.fino};c.alignment={vertical:'middle',indent:1,horizontal:'left'};if(row%2)c.fill=XL.fill('EEF4F6');
+  if(typeof v==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v)){v=xlFecha(v);c.numFmt='dd/mm/yyyy';c.alignment={vertical:'middle',horizontal:'center'}}
+  else if(typeof v==='number'){if(dinero(k))c.numFmt='$ #,##0';else c.alignment={vertical:'middle',horizontal:'center'}}
+  c.value=v===''?null:v});L.getRow(row).height=22});
+ L.autoFilter={from:{row:1,column:1},to:{row:1,column:keys.length}};L.pageSetup={orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:0};return L}
+async function xlBajar(wb,nombre){const buf=await wb.xlsx.writeBuffer(),bl=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),a=document.createElement('a');
+ a.href=URL.createObjectURL(bl);a.download=nombre;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1500);toast('✓ Descargado: '+nombre)}
+const exTit=()=>{const e=EX.ej||EJ;return e==='*'?'todos los ejercicios':e};
+const ESTC={'Pendiente':['FCF1D8','8A5F00','E09B00'],'Inscripto':['E4ECFB','2F6FDE','2F6FDE'],'En curso':['E1F1F5','008EAA','008EAA'],'Finalizada':['E4F4EC','1B7F54','22A06B'],'Cancelada':['FDEAEA','B42318','E5484D'],'Diferida':['EEF1F2','5B6B70','5B6B70']};
+let EXS={abierta:null,sec:{plan:true,becas:true,idiomas:true,fact:true,presu:true,prov:true,nom:true}};
+let EXV={est:{'Pendiente':true,'En curso':true,'Finalizada':true},cancel:false,lin:{'Conocé':true,'Crecé':true,'Explorá':true},part:true,orden:'linea'};
+let EXB={est:{'En curso':true,'Finalizada':true,'Baja':true},pagos:true};
+let EXI={bajas:true,bloques:true};
+let EXF={tipo:{'Capacitación':true,'Gasto asociado':true,'Idioma':true,'Beca':true},est:{'Pagada':true,'Pendiente':true},soc:{}};
+const exvGrupo=p=>{const e=estadoAuto(p);return e==='Finalizada'||e==='En curso'||e==='Cancelada'||e==='Diferida'?e:'Pendiente'};   /* Inscripto cuenta como Pendiente: todavía no empezó */
+/* —— selector de ejercicio, igual en todas las tarjetas —— */
+function exEjHtml(){const ej=EX.ej||EJ,uno=ej!=='*';
+ return `<div class="f"><label>¿De qué ejercicio?</label><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button type="button" class="cb ${uno?'on':''}" onclick="EX.ej=(EX.ej&&EX.ej!=='*')?EX.ej:EJ;refresh()">Un ejercicio</button>
+  <select class="fi" style="min-width:150px" ${uno?'':'disabled'} onchange="EX.ej=this.value;refresh()">${ejercicios().map(e=>`<option value="${e}" ${ej===e?'selected':''}>${e}${e===EJ?' (el que estás viendo)':''}</option>`).join('')}</select>
+  <button type="button" class="cb ${uno?'':'on'}" onclick="EX.ej='*';refresh()">Todos los ejercicios</button></div></div>`}
+const exChip=(obj,grp,k,txt,col0)=>{const col=col0&&!String(col0).startsWith('#')?'#'+col0:col0;return `<button type="button" class="cb ${obj[grp][k]?'on':''}" ${col?`style="--cbc:${col}"`:''} onclick="${obj===EXV?'EXV':obj===EXB?'EXB':obj===EXF?'EXF':'EXI'}['${grp}']['${k}']=!${obj===EXV?'EXV':obj===EXB?'EXB':obj===EXF?'EXF':'EXI'}['${grp}']['${k}'];refresh()">${col?`<i style="background:${col}"></i>`:''}${txt}</button>`};
+/* ═════ PLAN ═════ */
+function exvSel(){
+ const ej=EX.ej||EJ,LO=['Conocé','Crecé','Explorá'];
+ let P=DB.plan.filter(p=>(ej==='*'||p.ej===ej)&&(EXV.est[exvGrupo(p)]!==undefined?EXV.est[exvGrupo(p)]:EXV.cancel)&&(p.linea?EXV.lin[p.linea]:true));
+ const ini=p=>actFechas(p).ini||'9999-99-99',eo={'En curso':0,'Pendiente':1,'Inscripto':2,'Finalizada':3,'Cancelada':4,'Diferida':5};
+ P.sort((a,b)=>(ej==='*'?b.ej.localeCompare(a.ej):0)||(EXV.orden==='fecha'?ini(a).localeCompare(ini(b)):EXV.orden==='estado'?(eo[exvGrupo(a)]-eo[exvGrupo(b)]):EXV.orden==='nombre'?0:(LO.indexOf(a.linea)<0?9:LO.indexOf(a.linea))-(LO.indexOf(b.linea)<0?9:LO.indexOf(b.linea)))||ini(a).localeCompare(ini(b))||a.nom.localeCompare(b.nom,'es'));
+ if(EXV.orden==='nombre')P.sort((a,b)=>a.nom.localeCompare(b.nom,'es'));return P}
+function exPanelPlan(){
+ const P=exvSel(),pers=new Set(),insc=P.reduce((a,p)=>{const A=activos(p);A.forEach(x=>pers.add(x.lg||x.nom));return a+A.length},0),ej=EX.ej||EJ;
+ const cnt=g=>DB.plan.filter(p=>(ej==='*'||p.ej===ej)&&exvGrupo(p)===g).length,set=f=>`Object.keys(EXV.est).forEach(k=>EXV.est[k]=${f});refresh()`;
+ return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:22px;align-items:start">
+  <div>${exEjHtml()}<div class="f" style="margin-top:16px"><label>¿Qué estados querés? <span class="sub2" style="font-weight:400">· los del cuadro de estado</span></label><div style="display:flex;gap:6px;flex-wrap:wrap">${Object.keys(EXV.est).map(g=>exChip(EXV,'est',g,g+' <b>'+cnt(g)+'</b>',ESTC[g][2])).join('')}</div>
+    <label class="check" style="margin-top:8px;font-size:12.5px"><input type="checkbox" ${EXV.cancel?'checked':''} onchange="EXV.cancel=this.checked;refresh()"> Incluir también las canceladas o diferidas <span class="sub2">(${cnt('Cancelada')+cnt('Diferida')})</span></label>
+    <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap"><button class="btn n s" onclick="${set('true')}">Todos</button><button class="btn n s" onclick="Object.keys(EXV.est).forEach(k=>EXV.est[k]=(k==='Pendiente'));refresh()">Solo pendientes</button><button class="btn n s" onclick="Object.keys(EXV.est).forEach(k=>EXV.est[k]=(k==='En curso'));refresh()">Solo en curso</button><button class="btn n s" onclick="Object.keys(EXV.est).forEach(k=>EXV.est[k]=(k==='Finalizada'));refresh()">Solo finalizadas</button></div></div></div>
+  <div><div class="f"><label>Línea</label><div style="display:flex;gap:6px;flex-wrap:wrap">${['Conocé','Crecé','Explorá'].map(l=>exChip(EXV,'lin',l,l,CLIN[l])).join('')}</div></div>
+   <div class="f" style="margin-top:14px"><label>Ordenar por</label><select class="fi" onchange="EXV.orden=this.value;refresh()">${[['linea','Línea (Conocé, Crecé, Explorá)'],['fecha','Fecha de inicio'],['estado','Estado'],['nombre','Nombre']].map(([v,t])=>`<option value="${v}" ${EXV.orden===v?'selected':''}>${t}</option>`).join('')}</select></div>
+   <label class="check" style="margin-top:12px;font-size:12.5px"><input type="checkbox" ${EXV.part?'checked':''} onchange="EXV.part=this.checked;refresh()"> Incluir las personas anotadas de cada capacitación</label></div>
+  <div><div style="background:var(--niebla);border-radius:14px;padding:14px 16px"><div class="sub2">Se exportan</div><div style="font-size:26px;font-weight:700;color:var(--celeste);line-height:1.2">${P.length}</div><div class="sub2">capacitaciones${EXV.part?' · '+insc+' inscripciones ('+pers.size+' personas distintas)':''}</div></div>
+   <div class="sub2" style="margin-top:10px;line-height:1.6">Trae: <b>Plan</b> (un bloque de color por capacitación), <b>Listado</b> (una fila por capacitación)${EXV.part?' y <b>Personas anotadas</b> (una fila por persona)':''}.</div>
+   <div class="acts" style="margin-top:12px"><button class="btn" ${P.length?'':'disabled'} onclick="exPlanVisual()">⬇ Descargar Excel</button></div></div></div>`}
+async function exPlanVisual(){
+ const P=exvSel();if(!P.length){toast('No hay capacitaciones con esos filtros');return}
+ try{toast('Armando el Excel…');const wb=await xlLibro(),ej=EX.ej||EJ;
+  const LC={'Conocé':'22A06B','Crecé':'2F6FDE','Explorá':'7C5CD6'},toD=xlFecha;
+  const info=P.map(p=>{const A=activos(p),fx=actFechas(p),g=exvGrupo(p),monto=(+p.real>0)?+p.real:(+p.ppto>0?+p.ppto:0);
+   return{p,A,fx,g,monto,mlabel:(+p.real>0)?'Monto real':(+p.ppto>0?'Monto estimado':'Monto'),bajas:p.parts.filter(x=>x.est==='Baja').length,asis:tieneAsis(p)?asisProm(p)+'%':'—',tipo:p.tipo+(p.sub?' · '+p.sub:'')}});
+  const pers=new Set();info.forEach(o=>o.A.forEach(x=>pers.add(x.lg||x.nom)));const nIns=info.reduce((a,o)=>a+o.A.length,0),tMonto=info.reduce((a,o)=>a+o.monto,0),cG=g=>info.filter(o=>o.g===g).length;
+  const filtros=Object.entries(EXV.est).filter(([,v])=>v).map(([k])=>k).join(' · ')+(EXV.cancel?' · Canceladas o diferidas':'');
+  const h=xlHoja(wb,'Plan',2,8,[3,30,16,22,24,22,26,24,3],'Plan del ejercicio '+(ej==='*'?'(todos los ejercicios)':ej),info.length+' capacitaciones · '+filtros+' · generado el '+xlDD(HOY));
+  let r=xlCards(h,8,[['Capacitaciones',info.length,'en este export'],['Pendientes',cG('Pendiente'),'todavía no empezaron','E09B00'],['En curso',cG('En curso'),'se están cursando','008EAA'],['Finalizadas',cG('Finalizada'),'ya realizadas','22A06B'],['Personas',pers.size,'distintas anotadas'],['Inscripciones',nIns,'personas × capacitación'],['Monto cargado',tMonto,'real o estimado',null,'$ #,##0']],2);r=12;
+  info.forEach(o=>{const p=o.p,col=LC[p.linea]||'0B4855',ec=ESTC[o.g]||ESTC['Pendiente'];
+   r=xlBloque(h,r,p.nom+(ej==='*'?'  ·  '+p.ej:''),col,(o.g==='En curso'?'● ':o.g==='Finalizada'?'✓ ':'○ ')+o.g,2,8);
+   r=xlGrid(h,r,['Línea','Tipo','Foco','Proveedor','Dictado','Alcance','Estado'],[p.linea||'—',o.tipo,p.foco||'—',p.prov&&p.prov!=='A definir'?p.prov:'Por definir',p.dict||'—',p.alc||'—',o.g],null,2,{6:[ec[0],ec[1]],0:p.linea&&LC[p.linea]?['EEF4F6',LC[p.linea]]:null});
+   r=xlGrid(h,r,['Inicia','Termina',o.mlabel,'Personas anotadas','Bajas','Asistencia','Presupuesto'],[o.fx.ini?toD(o.fx.ini):'Por definir',o.fx.fin&&o.fx.ini?toD(o.fx.fin):'Por definir',o.monto?o.monto:'—',o.A.length,o.bajas||'—',o.asis,p.presup==='Fuera'?'Fuera (DI)':'Dentro'],['dd/mm/yyyy','dd/mm/yyyy','$ #,##0','0','0',null,null],2);
+   if(p.notas||p.accion)r=xlNota(h,r,'Notas: '+[p.notas,p.accion].filter(Boolean).join(' · '),2,8);
+   if(EXV.part){const rows=p.parts.slice().sort((a,b)=>(a.est==='Baja')-(b.est==='Baja')||a.nom.localeCompare(b.nom,'es')).map(x=>{const baja=x.est==='Baja',as=tieneAsis(p)&&!baja?asisPers(p,x):null;
+     return[x.nom,x.lg||'',ab(x.soc||'')||'—',x.un||'—',x.vn||'—',x.lider||'—',baja?'Baja'+(x.motivo?' · '+x.motivo:''):'Inscripto'+(as?' · '+as.n+'/'+as.tot:'')]});
+    r=xlTab(h,r,['Persona','Legajo','Sociedad','Área','Vertical','Líder','Estado'],rows,2,{al:['left','center'],vacio:'Todavía no hay personas anotadas',paint:(k,i,v)=>i===6&&String(v).startsWith('Baja')?[null,'B42318']:null})}
+   r+=2});
+  /* listado: una fila por capacitación */
+  const LST=info.map(o=>{const p=o.p;return{'Ejercicio':p.ej,'Capacitación':p.nom,'Línea':p.linea||'—','Tipo':o.tipo,'Foco':p.foco||'—','Proveedor':p.prov&&p.prov!=='A definir'?p.prov:'Por definir','Dictado':p.dict||'—','Alcance':p.alc||'—','Estado':o.g,'Inicia':o.fx.ini||'','Termina':o.fx.fin&&o.fx.ini?o.fx.fin:'','Monto real':+p.real>0?+p.real:'','Monto estimado':+p.ppto>0?+p.ppto:'','Personas':o.A.length,'Bajas':o.bajas,'Asistencia (%)':tieneAsis(p)?asisProm(p):'','Presupuesto':p.presup==='Fuera'?'Fuera (DI)':'Dentro','Link de la encuesta':p.encuesta||'','Notas':[p.notas,p.accion].filter(Boolean).join(' · ')}});
+  xlPlana(wb,'Listado',LST,{dinero:['Monto real','Monto estimado']});
+  if(EXV.part){const PER=[];info.forEach(o=>o.p.parts.slice().sort((a,b)=>a.nom.localeCompare(b.nom,'es')).forEach(x=>{const baja=x.est==='Baja',as=tieneAsis(o.p)&&!baja?asisPers(o.p,x):null;
+    PER.push({'Ejercicio':o.p.ej,'Capacitación':o.p.nom,'Línea':o.p.linea||'—','Estado de la capacitación':o.g,'Persona':x.nom,'Legajo':x.lg||'','Sociedad':ab(x.soc||'')||'—','Área':x.un||'—','Vertical':x.vn||'—','Líder':x.lider||'—','Estado de la persona':baja?'Baja':'Inscripto','Asistió a':as?as.n+' de '+as.tot:'','Motivo de la baja':baja?(x.motivo||''):''})}));
+   xlPlana(wb,'Personas anotadas',PER)}
+  await xlBajar(wb,'Plan_ejercicio_'+(ej==='*'?'todos':ej)+'_'+HOY+'.xlsx')
+ }catch(e){console.error(e);toast('No se pudo armar el Excel: '+(e.message||e))}}
+/* ═════ BECAS ═════ */
+function exBecasSel(){const d=exBecas();return{...d,becas:d.becas.filter(b=>EXB.est[b['Estado']]!==false)}}
+function exPanelBecas(){const d=exBecasSel(),tot=d.becas.reduce((a,b)=>a+(+b['Costo total']||0),0);
+ const todas=exBecas().becas,c=e=>todas.filter(b=>b['Estado']===e).length,col={'En curso':'#008EAA','Finalizada':'#22A06B','Baja':'#5B6B70'};
+ return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:22px;align-items:start">
+  <div>${exEjHtml()}<div class="sub2" style="margin-top:8px">Los pagos se cuentan por ejercicio; el listado trae todas las becas aprobadas.</div></div>
+  <div><div class="f"><label>¿Qué becas?</label><div style="display:flex;gap:6px;flex-wrap:wrap">${Object.keys(EXB.est).map(e=>exChip(EXB,'est',e,e+' <b>'+c(e)+'</b>',col[e])).join('')}</div></div>
+   <label class="check" style="margin-top:12px;font-size:12.5px"><input type="checkbox" ${EXB.pagos?'checked':''} onchange="EXB.pagos=this.checked;refresh()"> Incluir los pagos mes a mes dentro de cada beca</label></div>
+  <div><div style="background:var(--niebla);border-radius:14px;padding:14px 16px"><div class="sub2">Se exportan</div><div style="font-size:26px;font-weight:700;color:var(--celeste);line-height:1.2">${d.becas.length}</div><div class="sub2">becas · ${d.pagos.length} pagos del período</div></div>
+   <div class="sub2" style="margin-top:10px;line-height:1.6">Trae: <b>Becas</b> (un bloque por beca), <b>Listado de becas</b> y <b>Pagos por mes</b> (una fila por cuota o pago).</div>
+   <div class="acts" style="margin-top:12px"><button class="btn" ${d.becas.length?'':'disabled'} onclick="exBecasVisual()">⬇ Descargar Excel</button></div></div></div>`}
+async function exBecasVisual(){
+ const d=exBecasSel();if(!d.becas.length){toast('No hay becas con esos filtros');return}
+ try{toast('Armando el Excel…');const wb=await xlLibro(),uno=exEjs().length===1?exEjs()[0]:null,CE={'En curso':'008EAA','Finalizada':'22A06B','Baja':'5B6B70'},n=e=>d.becas.filter(b=>b['Estado']===e).length,sum=k=>d.becas.reduce((a,b)=>a+(+b[k]||0),0);
+  const h=xlHoja(wb,'Becas',2,8,[3,30,16,22,24,22,26,24,3],'Becas · '+exTit(),d.becas.length+' becas · generado el '+xlDD(HOY));
+  xlCards(h,8,[['Becas',d.becas.length,'en este export'],['En curso',n('En curso'),'se están pagando','008EAA'],['Finalizadas',n('Finalizada'),'ya terminaron','22A06B'],['Bajas',n('Baja'),'dadas de baja','5B6B70'],['Costo total',sum('Costo total'),'de los programas',null,'$ #,##0'],['Pagado',sum('Pagado en total'),'hasta hoy',null,'$ #,##0'],['Falta pagar',sum('Falta pagar en total'),'a futuro',null,'$ #,##0']],2);let r=12;
+  d.becas.forEach(b=>{const col=CE[b['Estado']]||'0B4855',pg=d.pagos.filter(x=>x['Colaborador']===b['Colaborador']);
+   r=xlBloque(h,r,b['Colaborador'],col,b['Estado'],2,8);
+   r=xlGrid(h,r,['Institución','Carrera o programa','Otorgada en','Inicio','Meses','Cuotas','Sociedad'],[b['Institución']||'—',b['Carrera o programa']||'—',b['Otorgada en']||'—',b['Inicio']||'—',b['Meses del programa']||'—',b['Cuotas']||'—',ab(b['Sociedad']||'')||'—'],null,2);
+   r=xlGrid(h,r,['% cubierto','Costo total','Cubrimos (total)','Pagado en total','Falta pagar','Último pago','Último monto'],[b['% cubierto']?b['% cubierto']+'%':'—',b['Costo total']||'—',b['Cubrimos (total)']||'—',b['Pagado en total']||0,b['Falta pagar en total']||0,b['Último pago (mes)']||'—',b['Último monto pagado']||'—'],[null,'$ #,##0','$ #,##0','$ #,##0','$ #,##0',null,'$ #,##0'],2);
+   if(uno)r=xlGrid(h,r,['Pagado en '+uno,'A pagar en '+uno,'Pasa al '+ejSiguiente(uno),'','','',''],[b['Pagado en '+uno]||0,b['A pagar en '+uno]||0,b['Pasa al '+ejSiguiente(uno)]||0,'','','',''],['$ #,##0','$ #,##0','$ #,##0'],2);
+   if(b['Motivo de baja']||b['Fecha de baja'])r=xlNota(h,r,'Baja: '+[b['Motivo de baja'],b['Fecha de baja']?xlDD(b['Fecha de baja']):''].filter(Boolean).join(' · '),2,8);
+   if(EXB.pagos)r=xlTab(h,r,['Mes de pago','Mes de cursada','Concepto','Cuota','Monto','¿Pagada?','Pedido'],pg.map(x=>[x['Mes de pago'],x['Mes de cursada'],x['Concepto'],x['Cuota']||'—',x['Monto'],x['¿Pagada?'],x['Pedido']||'—']),2,{al:['left','left','left','center','right','center','left'],fmt:[null,null,null,null,'$ #,##0'],vacio:'Sin pagos en este período',paint:(k,i,v)=>i===5?(String(v)==='Sí'?['E4F4EC','1B7F54']:['FCF1D8','8A5F00']):null});
+   r+=2});
+  xlPlana(wb,'Listado de becas',d.becas);xlPlana(wb,'Pagos por mes',d.pagos);
+  await xlBajar(wb,'Becas_'+exTag()+'_'+HOY+'.xlsx')
+ }catch(e){console.error(e);toast('No se pudo armar el Excel: '+(e.message||e))}}
+/* ═════ IDIOMAS ═════ */
+function exIdiSel(){const d=exIdiomas();return{...d,alumnos:d.alumnos.filter(a=>EXI.bajas||a['Estado']!=='Baja')}}
+function exPanelIdi(){const d=exIdiSel(),prof=[...new Set(d.alumnos.map(a=>a['Profe o plataforma']))].length;
+ return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:22px;align-items:start">
+  <div>${exEjHtml()}<div class="sub2" style="margin-top:8px">El ejercicio filtra las facturas; los alumnos son los de siempre.</div></div>
+  <div><label class="check" style="font-size:12.5px"><input type="checkbox" ${EXI.bajas?'checked':''} onchange="EXI.bajas=this.checked;refresh()"> Incluir a los alumnos dados de baja</label>
+   <label class="check" style="margin-top:10px;font-size:12.5px"><input type="checkbox" ${EXI.bloques?'checked':''} onchange="EXI.bloques=this.checked;refresh()"> Hoja “Idiomas” con un bloque por profe o plataforma</label></div>
+  <div><div style="background:var(--niebla);border-radius:14px;padding:14px 16px"><div class="sub2">Se exportan</div><div style="font-size:26px;font-weight:700;color:var(--celeste);line-height:1.2">${d.alumnos.length}</div><div class="sub2">alumnos · ${prof} profes o plataformas · ${d.facturas.length} facturas</div></div>
+   <div class="sub2" style="margin-top:10px;line-height:1.6">Trae: <b>Idiomas</b> (bloques), <b>Alumnos</b>, <b>Facturas</b> y <b>Personas por factura</b>.</div>
+   <div class="acts" style="margin-top:12px"><button class="btn" ${d.alumnos.length||d.facturas.length?'':'disabled'} onclick="exIdiVisual()">⬇ Descargar Excel</button></div></div></div>`}
+async function exIdiVisual(){
+ const d=exIdiSel();try{toast('Armando el Excel…');const wb=await xlLibro();
+  if(EXI.bloques){const profes=[...new Set([...d.alumnos.map(a=>a['Profe o plataforma']),...d.facturas.map(f=>f['Profe o plataforma'])])].sort((a,b)=>a.localeCompare(b,'es'));
+   const act=d.alumnos.filter(a=>a['Estado']!=='Baja').length,tot=d.facturas.reduce((a,f)=>a+(+f['Monto']||0),0),conN=d.facturas.filter(f=>f['N° de factura']).length;
+   const h=xlHoja(wb,'Idiomas',2,8,[3,30,16,22,24,22,26,24,3],'Idiomas · '+exTit(),d.alumnos.length+' alumnos · '+d.facturas.length+' facturas · generado el '+xlDD(HOY));
+   xlCards(h,8,[['Profes o plataformas',profes.length,'en este export'],['Alumnos activos',act,'hoy','22A06B'],['Alumnos dados de baja',d.alumnos.length-act,'','5B6B70'],['Facturas',d.facturas.length,'del período'],['Con N° de factura',conN,'ya facturadas','22A06B'],['Sin N° de factura',d.facturas.length-conN,'pendientes o estimadas','E09B00'],['Total facturado',tot,'monto de las facturas',null,'$ #,##0']],2);let r=12;
+   profes.forEach(pf=>{const A=d.alumnos.filter(a=>a['Profe o plataforma']===pf),F=d.facturas.filter(f=>f['Profe o plataforma']===pf),ac=A.filter(a=>a['Estado']!=='Baja').length,tf=F.reduce((a,f)=>a+(+f['Monto']||0),0);
+    r=xlBloque(h,r,pf,'0B4855',ac+' activos',2,8);
+    r=xlGrid(h,r,['Alumnos','Activos','Bajas','Idiomas','Facturas','Con N°','Total facturado'],[A.length,ac,A.length-ac||'—',[...new Set(A.map(a=>a['Idioma']))].join(', ')||'—',F.length,F.filter(f=>f['N° de factura']).length,tf],['0','0','0',null,'0','0','$ #,##0'],2);
+    r=xlTab(h,r,['Alumno','Legajo','Idioma','Sociedad','Área','Alta','Estado'],A.sort((a,b)=>(a['Estado']==='Baja')-(b['Estado']==='Baja')||a['Colaborador'].localeCompare(b['Colaborador'],'es')).map(a=>[a['Colaborador'],a['Legajo']||'',a['Idioma'],ab(a['Sociedad']||'')||'—',a['Área']||'—',a['Alta']?xlFecha(a['Alta']):'—',a['Estado']==='Baja'?'Baja'+(a['Baja']?' · '+xlDD(a['Baja']):''):'Activa']),2,{al:['left','center'],fmt:[null,null,null,null,null,'dd/mm/yyyy'],vacio:'Sin alumnos',paint:(k,i,v)=>i===6&&String(v).startsWith('Baja')?[null,'B42318']:null});
+    r++;
+    r=xlTab(h,r,['Mes de pago','Mes de cursada','Sociedad que factura','Personas','Monto','N° de factura','Fecha de factura'],F.map(f=>[f['Mes de pago'],f['Mes de cursada'],ab(f['Sociedad']||'')||'—',f['Personas'],f['Monto'],f['N° de factura']||(f['Estimado']?'Estimada':'Sin N°'),f['Fecha de factura']?xlFecha(f['Fecha de factura']):'—']),2,{al:['left','left','left','center','right','left','center'],fmt:[null,null,null,'0','$ #,##0',null,'dd/mm/yyyy'],vacio:'Sin facturas en este período',paint:(k,i,v)=>i===5&&(v==='Sin N°'||v==='Estimada')?['FCF1D8','8A5F00']:null});
+    r+=2})}
+  xlPlana(wb,'Alumnos',d.alumnos);xlPlana(wb,'Facturas',d.facturas);xlPlana(wb,'Personas por factura',d.personas);
+  await xlBajar(wb,'Idiomas_'+exTag()+'_'+HOY+'.xlsx')
+ }catch(e){console.error(e);toast('No se pudo armar el Excel: '+(e.message||e))}}
+/* ═════ FACTURACIÓN: el detalle completo para cruzar con los mayores ═════ */
+function exFactDet(){
+ const out=[];exEjs().forEach(ej=>exConEj(ej,()=>todasFacturas()).forEach(f=>{
+  const pl=f.idi?null:DB.plan.find(x=>x.id===(f.aid||f.pid||f.ref)),pa=exConEj(ej,()=>DB.part.find(x=>x.ej===ej&&x.id===f.cid))||{},pv=DB.prov.find(x=>x.nom===f.prov)||{};
+  out.push({'Ejercicio':ej,'Mes de pago':f.mpago||'Sin mes','Fecha de factura':f.fcarga||'','N° de factura':f.beca?'Rendición de beca':(f.nro||'Sin N°'),'Estado':f.est,'Tipo':f.tipo,'Línea':f.idi?'Idiomas':f.beca?'Becas':((pl&&pl.linea)||'—'),
+   'Concepto':f.act,'Proveedor':f.prov||'—','CUIT del proveedor':pv.cuit||'','Sociedad':f.soc||'—','Cuenta':f.cta||'a definir','Descripción de la cuenta':pa.desc||'','Cuenta completa':(ab(f.soc||'')||'—')+' · '+(f.cta||'a definir')+(pa.desc?' · '+pa.desc:''),'Monto':exNum(f.monto),'Fecha de pago':f.fpago||'','Pedido de pago (becas)':f.beca?(f.nro||''):''})}));
+ out.sort((a,b)=>a['Mes de pago'].localeCompare(b['Mes de pago'])||a['Cuenta completa'].localeCompare(b['Cuenta completa'])||a['Concepto'].localeCompare(b['Concepto']));
+ return out.filter(r=>EXF.tipo[r['Tipo']]!==false&&EXF.est[r['Estado']]!==false&&(!Object.values(EXF.soc).some(Boolean)||EXF.soc[r['Sociedad']]))}
+function exPanelFact(){const all=(()=>{const s=EXF.soc;EXF.soc={};const r=exFactDet();EXF.soc=s;return r})(),D=exFactDet(),tot=D.reduce((a,r)=>a+r['Monto'],0),socs=[...new Set(all.map(r=>r['Sociedad']))].sort();
+ const n=(k,v)=>all.filter(r=>r[k]===v).length;
+ return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:22px;align-items:start">
+  <div>${exEjHtml()}<div class="f" style="margin-top:16px"><label>Estado del comprobante</label><div style="display:flex;gap:6px;flex-wrap:wrap">${['Pagada','Pendiente'].map(e=>exChip(EXF,'est',e,e+' <b>'+n('Estado',e)+'</b>',e==='Pagada'?'#22A06B':'#E09B00')).join('')}</div>
+    <div class="hint">Pagada = ya tiene N° de factura. Pendiente = todavía sin número.</div></div></div>
+  <div><div class="f"><label>Tipo</label><div style="display:flex;gap:6px;flex-wrap:wrap">${Object.keys(EXF.tipo).map(t=>exChip(EXF,'tipo',t,t+' <b>'+n('Tipo',t)+'</b>')).join('')}</div></div>
+   <div class="f" style="margin-top:14px"><label>Sociedad <span class="sub2" style="font-weight:400">· ninguna tildada = todas</span></label><div style="display:flex;gap:6px;flex-wrap:wrap">${socs.map(sc=>`<button type="button" class="cb ${EXF.soc[sc]?'on':''}" onclick="EXF.soc['${js(sc)}']=!EXF.soc['${js(sc)}'];refresh()">${esc(ab(sc)||sc)} <b>${n('Sociedad',sc)}</b></button>`).join('')}</div></div></div>
+  <div><div style="background:var(--niebla);border-radius:14px;padding:14px 16px"><div class="sub2">Se exportan</div><div style="font-size:26px;font-weight:700;color:var(--celeste);line-height:1.2">${D.length}</div><div class="sub2">comprobantes · ${plata(tot)}</div></div>
+   <div class="sub2" style="margin-top:10px;line-height:1.6">Trae: <b>Detalle</b> (una fila por comprobante, con cuenta, proveedor y CUIT), <b>Por cuenta y mes</b> y <b>Por proveedor</b>, para comparar con los mayores.</div>
+   <div class="acts" style="margin-top:12px"><button class="btn" ${D.length?'':'disabled'} onclick="exFactVisual()">⬇ Descargar Excel</button></div></div></div>`}
+function xlDetalleFact(wb,D){const L=xlPlana(wb,'Detalle',D,{tope:52});return L}
+async function exFactVisual(){
+ const D=exFactDet();if(!D.length){toast('No hay comprobantes con esos filtros');return}
+ try{toast('Armando el Excel…');const wb=await xlLibro(),N=D.length+1,COL={};Object.keys(D[0]).forEach((k,i)=>COL[k]=String.fromCharCode(65+i));
+  const rg=k=>`Detalle!$${COL[k]}$2:$${COL[k]}$${N}`;
+  xlDetalleFact(wb,D);
+  const meses=[...new Set(D.map(r=>r['Mes de pago']))].sort((a,b)=>a==='Sin mes'?1:b==='Sin mes'?-1:a.localeCompare(b)),cuentas=[...new Set(D.map(r=>r['Cuenta completa']))].sort();
+  const pagada=D.filter(r=>r['Estado']==='Pagada').reduce((a,r)=>a+r['Monto'],0),pend=D.filter(r=>r['Estado']==='Pendiente').reduce((a,r)=>a+r['Monto'],0);
+  /* por cuenta y mes (con fórmulas que miran la hoja Detalle) */
+  const nc=meses.length+3,h=xlHoja(wb,'Por cuenta y mes',2,nc+1,[3,52,...meses.map(()=>18),19,3],'Facturación · '+exTit()+' · por cuenta y mes',D.length+' comprobantes · generado el '+xlDD(HOY));
+  xlCards(h,8,[['Comprobantes',D.length,'en este export'],['Pagadas (con N°)',pagada,'suma de montos','22A06B','$ #,##0',13],['Pendientes (sin N°)',pend,'suma de montos','E09B00','$ #,##0',13],['Total',pagada+pend,'',null,'$ #,##0',13]],2);
+  let r=13;
+  const tabla=(titulo,est,col)=>{r=xlBloque(h,r,titulo,col,'',2,nc+1);
+   const hd=['Cuenta',...meses.map(m=>m),'Total'];hd.forEach((t,i)=>{const c=h.getCell(r,2+i);c.value=t;c.font=XL.fnt(9,true,'008EAA');c.alignment={horizontal:i?'right':'left',vertical:'middle',indent:i?0:1};c.border={bottom:{style:'thin',color:{argb:'FF008EAA'}}}});const hr=r;h.getRow(r).height=22;r++;const r0=r;
+   cuentas.forEach((cu,k)=>{const cc=h.getCell(r,2);cc.value=cu;cc.font=XL.fnt(9.5,true);cc.alignment={vertical:'middle',indent:1};cc.border={bottom:XL.fino};
+    meses.forEach((m,j)=>{const v=D.filter(x=>x['Cuenta completa']===cu&&x['Mes de pago']===m&&x['Estado']===est).reduce((a,x)=>a+x['Monto'],0),c=h.getCell(r,3+j),cl=String.fromCharCode(67+j);
+     c.value={formula:`SUMPRODUCT((${rg('Cuenta completa')}=$B${r})*(${rg('Mes de pago')}=${cl}$${hr})*(${rg('Estado')}="${est}")*${rg('Monto')})`,result:v};c.numFmt='$ #,##0;-$ #,##0;"·"';c.font=XL.fnt(9.5);c.alignment={horizontal:'right',vertical:'middle'};c.border={bottom:XL.fino}});
+    const t=h.getCell(r,3+meses.length),tv=D.filter(x=>x['Cuenta completa']===cu&&x['Estado']===est).reduce((a,x)=>a+x['Monto'],0);t.value={formula:`SUM(C${r}:${String.fromCharCode(66+meses.length)}${r})`,result:tv};t.numFmt='$ #,##0';t.font=XL.fnt(9.5,true);t.alignment={horizontal:'right',vertical:'middle'};t.border={bottom:XL.fino};h.getRow(r).height=20;r++});
+   const tr=h.getCell(r,2);tr.value='Total';tr.font=XL.fnt(10,true);[...meses,'T'].forEach((m,j)=>{const c=h.getCell(r,3+j),cl=String.fromCharCode(67+j),v=m==='T'?D.filter(x=>x['Estado']===est).reduce((a,x)=>a+x['Monto'],0):D.filter(x=>x['Mes de pago']===m&&x['Estado']===est).reduce((a,x)=>a+x['Monto'],0);
+    c.value={formula:`SUM(${cl}${r0}:${cl}${r-1})`,result:v};c.numFmt='$ #,##0';c.font=XL.fnt(10,true);c.alignment={horizontal:'right',vertical:'middle'}});for(let c=2;c<=nc+1;c++)h.getCell(r,c).border={top:{style:'medium',color:{argb:'FF0B4855'}}};h.getRow(r).height=26;r+=3};
+  tabla('Pagadas · con N° de factura','Pagada','22A06B');tabla('Pendientes · todavía sin N° de factura','Pendiente','E09B00');
+  /* por proveedor */
+  const provs=[...new Set(D.map(x=>x['Proveedor']))].sort((a,b)=>a.localeCompare(b,'es')),hp=xlHoja(wb,'Por proveedor',2,8,[3,40,18,14,18,18,18,3],'Facturación · '+exTit()+' · por proveedor',provs.length+' proveedores · generado el '+xlDD(HOY));
+  let q=9;['Proveedor','CUIT','Comprobantes','Pagado (con N°)','Pendiente (sin N°)','Total'].forEach((t,i)=>{const c=hp.getCell(q,2+i);c.value=t;c.font=XL.fnt(10,true,'FFFFFF');c.fill=XL.fill('0B4855');c.alignment={horizontal:i>=2?'right':'left',vertical:'middle',indent:i<2?1:0}});hp.getRow(q).height=26;q++;const q0=q;
+  provs.forEach((pv,k)=>{const A=D.filter(x=>x['Proveedor']===pv),cuit=(A.find(x=>x['CUIT del proveedor'])||{})['CUIT del proveedor']||'';
+   const vals=[pv,cuit,{formula:`COUNTIF(${rg('Proveedor')},$B${q})`,result:A.length},{formula:`SUMIFS(${rg('Monto')},${rg('Proveedor')},$B${q},${rg('Estado')},"Pagada")`,result:A.filter(x=>x['Estado']==='Pagada').reduce((a,x)=>a+x['Monto'],0)},{formula:`SUMIFS(${rg('Monto')},${rg('Proveedor')},$B${q},${rg('Estado')},"Pendiente")`,result:A.filter(x=>x['Estado']==='Pendiente').reduce((a,x)=>a+x['Monto'],0)},{formula:`E${q}+F${q}`,result:A.reduce((a,x)=>a+x['Monto'],0)}];
+   vals.forEach((v,i)=>{const c=hp.getCell(q,2+i);c.value=v;c.font=XL.fnt(9.5,i===0);c.border={bottom:XL.fino};c.alignment={horizontal:i>=2?'right':'left',vertical:'middle',indent:i<2?1:0};if(i>=3)c.numFmt='$ #,##0';if(q%2)c.fill=XL.fill('EEF4F6')});hp.getRow(q).height=22;q++});
+  const tt=hp.getCell(q,2);tt.value='Total';tt.font=XL.fnt(10,true);[2,3,4,5].forEach((o,i)=>{const cl=String.fromCharCode(68+i),c=hp.getCell(q,4+i);c.value={formula:`SUM(${cl}${q0}:${cl}${q-1})`,result:[D.length,pagada,pend,pagada+pend][i]};c.numFmt=i?'$ #,##0':'0';c.font=XL.fnt(10,true);c.alignment={horizontal:'right',vertical:'middle'}});for(let c=2;c<=7;c++)hp.getCell(q,c).border={top:{style:'medium',color:{argb:'FF0B4855'}}};
+  await xlBajar(wb,'Facturacion_'+exTag()+'_'+HOY+'.xlsx')
+ }catch(e){console.error(e);toast('No se pudo armar el Excel: '+(e.message||e))}}
+/* ═════ PRESUPUESTO: por cuenta, como viene en la app; cada cuenta se abre para ver qué se imputó (incluidas las DI) ═════ */
+let EXP={detalle:true};
+const TIPOI={act:'Capacitación',gasto:'Gasto asociado',beca:'Beca',idi:'Idioma',comp:'Comprometido manual',fact:'Comprobante'};
+function exPresDatos(ej){return exConEj(ej,()=>{const N=presNum(),C=DB.cierre&&DB.cierre[ej];
+ const rows=N.rows.map(r=>{const c=r.c,its=(r.items||[]).map(i=>({tipo:TIPOI[i.t]||i.t,concepto:i.nom,di:!!i.di,ejec:!!i.cerrado,m:+i.m||0})),com=its.filter(i=>!i.di&&!i.ejec).reduce((a,i)=>a+i.m,0);
+  return{soc:c.soc,ab:c.ab||ab(c.soc),cta:c.cta,desc:c.desc,area:c.area||'',base:c.base,ej:r.ej,di:r.di,real:r.ej+r.di,disp:c.base-r.ej,com,items:its}});
+ return{ej,cerrado:!!C,rows,dis:C&&C.di?C.di:null}})}
+const exPresTot=D=>{const t=k=>D.rows.reduce((a,r)=>a+(r[k]||0),0);return{base:t('base'),ej:t('ej'),di:t('di'),real:t('real'),com:t('com'),disp:t('base')-t('ej')}};
+function exPanelPres(){const ejs=exEjs(),D=ejs.map(exPresDatos),n=D.reduce((a,d)=>a+d.rows.length,0),T=ejs.length===1?exPresTot(D[0]):null;
+ return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:22px;align-items:start">
+  <div>${exEjHtml()}</div>
+  <div><label class="check" style="font-size:12.5px"><input type="checkbox" ${EXP.detalle?'checked':''} onchange="EXP.detalle=this.checked;refresh()"> Que cada cuenta se pueda abrir (+) y muestre qué se imputó, incluidas las DI</label>
+   <div class="sub2" style="margin-top:10px;line-height:1.6">Trae: <b>Presupuesto</b> (por cuenta, como en la app), <b>Por cuenta</b> y <b>Detalle</b> (planas, con filtros) y <b>DI</b>.</div></div>
+  <div><div style="background:var(--niebla);border-radius:14px;padding:14px 16px"><div class="sub2">Se exportan</div><div style="font-size:26px;font-weight:700;color:var(--celeste);line-height:1.2">${n}</div><div class="sub2">cuentas${T?` · base ${plata(T.base)} · <b style="color:${T.disp<0?'var(--rojo)':'var(--verde)'}">${T.disp<0?'excedido ':'disponible '}${plata(Math.abs(T.disp))}</b>`:''}</div></div>
+   <div class="acts" style="margin-top:12px"><button class="btn" ${n?'':'disabled'} onclick="exPresVisual()">⬇ Descargar Excel</button></div></div></div>`}
+function exPresFlat(D){const A=[],B=[],C=[];D.forEach(d=>{d.rows.forEach(r=>{A.push({'Ejercicio':d.ej,'Sociedad':r.soc,'Cuenta':r.cta,'Descripción':r.desc,'Área':r.area,'Presupuesto base':exNum(r.base),'Ejecutado (sin DI)':exNum(r.ej),'Ejecutado DI':exNum(r.di),'Real (ejecutado + DI)':exNum(r.real),'Disponible / Excedido':exNum(r.disp),'Situación':r.disp<0?'Excedido':'Disponible','Comprometido sin factura':exNum(r.com)});
+  r.items.forEach(i=>B.push({'Ejercicio':d.ej,'Sociedad':r.soc,'Cuenta':r.cta,'Descripción de la cuenta':r.desc,'Área':r.area,'Tipo':i.tipo,'Concepto':i.concepto,'¿DI?':i.di?'DI':'','Estado':i.ejec?'Ejecutado':'Comprometido','Monto':exNum(i.m)}));
+  r.items.filter(i=>i.di).forEach(i=>C.push({'Ejercicio':d.ej,'Cuenta':r.cta+' · '+r.desc,'Sociedad':r.soc,'Concepto':i.concepto,'Monto':exNum(i.m),'Estado':i.ejec?'Ejecutada':'Sin ejecutar','Aprobó':'','Nota':''}))});
+  (d.dis||[]).forEach(x=>C.push({'Ejercicio':d.ej,'Cuenta':'Ver cierre del ejercicio','Sociedad':'','Concepto':x.prog,'Monto':exNum(x.monto),'Estado':'Ejecutada','Aprobó':x.aprobo||'','Nota':x.nota||''}))});
+ return{cuentas:A,detalle:B,di:C}}
+async function exPresVisual(){
+ const ejs=exEjs(),D=ejs.map(exPresDatos);if(!D.some(d=>d.rows.length)){toast('No hay cuentas para exportar');return}
+ try{toast('Armando el Excel…');const wb=await xlLibro(),VD='22A06B',RJ='E5484D';
+  const h=xlHoja(wb,'Presupuesto',2,10,[3,22,36,18,19,19,19,19,22,19,3],'Presupuesto · '+exTit(),D.reduce((a,d)=>a+d.rows.length,0)+' cuentas · generado el '+xlDD(HOY));
+  h.properties.outlineProperties={summaryBelow:false,summaryRight:false};
+  let r=8;
+  if(D.length===1){const T=exPresTot(D[0]);r=xlCards(h,8,[['Presupuesto base (fija)',T.base,'asignado por cuenta',null,'$ #,##0',11],['Ejecutado',T.ej,'sin contar las DI','008EAA','$ #,##0',11],['Ejecutado DI',T.di,'DI ejecutadas','5B6B70','$ #,##0',11],['Real',T.real,'ejecutado + DI',null,'$ #,##0',11],[T.disp<0?'Excedido':'Disponible',Math.abs(T.disp),'base − ejecutado sin DI',T.disp<0?RJ:VD,'$ #,##0',11],['Comprometido',T.com,'sin N° de factura','E09B00','$ #,##0',11]],2);r=12}
+  const heads=['Cuenta','Descripción','Área','Presupuesto base','Ejecutado (sin DI)','Ejecutado DI','Real (ej. + DI)','Disponible (verde) / Excedido (rojo)','Comprometido'],fm=[null,null,null,'$ #,##0','$ #,##0','$ #,##0','$ #,##0','$ #,##0','$ #,##0'],AL=['left','left','left','right','right','right','right','right','right'];
+  D.forEach(d=>{const T=exPresTot(d);
+   r=xlBloque(h,r,'Ejercicio '+d.ej+(d.cerrado?' · cerrado':''),'0B4855',(T.disp<0?'Excedido ':'Disponible ')+plata(Math.abs(T.disp)),2,10);
+   const bySoc={};d.rows.forEach(x=>(bySoc[x.soc]=bySoc[x.soc]||[]).push(x));
+   Object.entries(bySoc).forEach(([soc,rs])=>{
+    for(let c=2;c<=10;c++)h.getCell(r,c).fill=XL.fill('EEF4F6');const sc=h.getCell(r,2);sc.value=soc+'  ·  '+ab(soc);sc.font=XL.fnt(11,true,'008EAA');sc.alignment={vertical:'middle',indent:1};h.getRow(r).height=26;r++;
+    heads.forEach((t,i)=>{const c=h.getCell(r,2+i);c.value=t;c.font=XL.fnt(9,true,'008EAA');c.alignment={horizontal:AL[i],vertical:'middle',indent:AL[i]==='left'?1:0,wrapText:true};c.border={bottom:{style:'thin',color:{argb:'FF008EAA'}}}});h.getRow(r).height=24;r++;
+    const r0=r;
+    rs.forEach(x=>{const vals=[x.cta,x.desc,x.area||'—',x.base,x.ej,x.di,x.real,x.disp,x.com];
+     vals.forEach((v,i)=>{const c=h.getCell(r,2+i);c.value=v;c.font=XL.fnt(10,i<2||i===7);c.alignment={horizontal:AL[i],vertical:'middle',indent:AL[i]==='left'?1:0};c.border={bottom:XL.fino};if(fm[i])c.numFmt=fm[i]});
+     const dc=h.getCell(r,9);dc.fill=XL.fill(x.disp<0?'FDEAEA':'E4F4EC');dc.font=XL.fnt(10,true,x.disp<0?'B42318':'1B7F54');dc.numFmt='$ #,##0;-$ #,##0';
+     h.getRow(r).height=24;const accRow=r;r++;
+     if(EXP.detalle&&x.items.length){
+      x.items.slice().sort((a,b)=>(b.di-a.di)||(b.ejec-a.ejec)||a.tipo.localeCompare(b.tipo)||a.concepto.localeCompare(b.concepto,'es')).forEach(i=>{
+       const row=h.getRow(r);row.outlineLevel=1;row.hidden=true;row.height=19;
+       const t=h.getCell(r,2);t.value=i.tipo;t.font=XL.fnt(9,false,'5B6B70');t.alignment={vertical:'middle',indent:2};
+       const cn=h.getCell(r,3);cn.value=i.concepto;cn.font=XL.fnt(9);cn.alignment={vertical:'middle',indent:1};
+       const dd=h.getCell(r,4);dd.value=i.di?'DI':'';dd.font=XL.fnt(9,true,'7C5CD6');dd.alignment={horizontal:'left',vertical:'middle',indent:1};
+       const col=i.di?(i.ejec?7:null):(i.ejec?6:10);if(col){const c=h.getCell(r,col);c.value=i.m;c.numFmt='$ #,##0';c.font=XL.fnt(9,false,i.di?'7C5CD6':null);c.alignment={horizontal:'right',vertical:'middle'}}
+       for(let c=2;c<=10;c++)h.getCell(r,c).border={bottom:{style:'hair',color:{argb:'FFD5DFE2'}}};r++});
+      h.getRow(accRow).collapsed=true}});
+    /* total de la sociedad */
+    const tt=h.getCell(r,2);tt.value='Total '+ab(soc);tt.font=XL.fnt(10,true);const sm=k=>rs.reduce((a,x)=>a+(x[k]||0),0);
+    [[5,'base'],[6,'ej'],[7,'di'],[8,'real'],[10,'com']].forEach(([c,k])=>{const cc=h.getCell(r,c);cc.value=sm(k);cc.numFmt='$ #,##0';cc.font=XL.fnt(10,true);cc.alignment={horizontal:'right',vertical:'middle'}});
+    const dis=rs.reduce((a,x)=>a+x.base,0)-sm('ej'),dc=h.getCell(r,9);dc.value=dis;dc.numFmt='$ #,##0;-$ #,##0';dc.font=XL.fnt(10,true,dis<0?'B42318':'1B7F54');dc.alignment={horizontal:'right',vertical:'middle'};
+    for(let c=2;c<=10;c++)h.getCell(r,c).border={top:{style:'medium',color:{argb:'FF0B4855'}}};h.getRow(r).height=26;r+=2});
+   r+=1});
+  if(EXP.detalle){const n=h.getCell(r,2);n.value='Tip: tocá el + (o los números 1 y 2 arriba a la izquierda) para abrir cada cuenta y ver qué se imputó. Las DI van en violeta.';n.font=XL.fnt(8.5,false,'5B6B70',true)}
+  const F=exPresFlat(D);
+  const pc=xlPlana(wb,'Por cuenta',F.cuentas,{dinero:['Presupuesto base','Ejecutado (sin DI)','Ejecutado DI','Real (ejecutado + DI)','Disponible / Excedido','Comprometido sin factura']});
+  F.cuentas.forEach((x,k)=>{const neg=x['Disponible / Excedido']<0,c=pc.getCell(k+2,10),s=pc.getCell(k+2,11);c.font=XL.fnt(10,true,neg?'B42318':'1B7F54');s.font=XL.fnt(10,true,neg?'B42318':'1B7F54');s.fill=XL.fill(neg?'FDEAEA':'E4F4EC')});
+  xlPlana(wb,'Detalle',F.detalle,{dinero:['Monto'],tope:52});xlPlana(wb,'DI',F.di,{dinero:['Monto']});
+  await xlBajar(wb,'Presupuesto_'+exTag()+'_'+HOY+'.xlsx')
+ }catch(e){console.error(e);toast('No se pudo armar el Excel: '+(e.message||e))}}
+/* ═════ CONSOLIDADO: la hoja más completa de cada sección, todas filtrables ═════ */
+function exPanelTodo(){const S=EXS.sec,ch=(k,t,d)=>`<label class="check" style="font-size:12.5px;align-items:flex-start"><input type="checkbox" ${S[k]?'checked':''} onchange="EXS.sec['${k}']=this.checked;refresh()"><span><b>${t}</b><br><span class="sub2">${d}</span></span></label>`;
+ return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:22px;align-items:start">
+  <div>${exEjHtml()}<div class="sub2" style="margin-top:10px;line-height:1.6">Un solo Excel con una hoja <b>Índice</b> y, por cada sección, sus hojas más completas, todas con filtros en el encabezado.</div></div>
+  <div style="display:grid;gap:10px">${ch('plan','Plan','capacitaciones, personas anotadas y por persona')}${ch('becas','Becas','becas y pagos')}${ch('idiomas','Idiomas','alumnos, facturas y personas por factura')}${ch('fact','Facturación','el detalle completo')}</div>
+  <div><div style="display:grid;gap:10px">${ch('presu','Presupuesto','por cuenta, con el detalle y las DI')}${ch('prov','Proveedores','contacto y CUIT')}${ch('nom','Nómina','todas las personas')}</div>
+   <div class="acts" style="margin-top:14px"><button class="btn" onclick="exConsolidado()">⬇ Descargar consolidado</button></div></div></div>`}
+async function exConsolidado(){
+ try{toast('Armando el consolidado…');const wb=await xlLibro(),S=EXS.sec,hojas=[],ejs=exEjs(),oldSolo=EX.solo;EX.solo=false;
+  const add=(sec,nombre,desc,rows,o)=>{hojas.push([sec,nombre,desc,rows.length]);xlPlana(wb,nombre,rows,o)};
+  const idx=xlHoja(wb,'Índice',2,5,[3,32,70,12,3],'Consolidado · '+exTit(),'una hoja por tema, todas con filtros · generado el '+xlDD(HOY));
+  if(S.plan){const p=exPlan();add('Plan','Plan · Capacitaciones','Una fila por capacitación: tipo, línea, foco, proveedor, fechas, montos, participantes.',p.caps);add('Plan','Plan · Personas anotadas','Una fila por persona y capacitación, con asistencia y estado.',p.part);add('Plan','Plan · Por persona','Cuántas capacitaciones hizo cada persona.',p.personas)}
+  if(S.becas){const b=exBecas();add('Becas','Becas','Una fila por beca aprobada, con lo cubierto, pagado y lo que falta.',b.becas);add('Becas','Becas · Pagos','Cada cuota y pago, mes a mes.',b.pagos)}
+  if(S.idiomas){const i=exIdiomas();add('Idiomas','Idiomas · Alumnos','Cada cursada con su profe, alta y baja.',i.alumnos);add('Idiomas','Idiomas · Facturas','Las facturas de cada profe.',i.facturas);add('Idiomas','Idiomas · Personas por factura','Quiénes entran en cada factura.',i.personas)}
+  if(S.fact){const sv=EXF.soc;EXF.soc={};const tv=EXF.tipo,ev=EXF.est;EXF.tipo={'Capacitación':true,'Gasto asociado':true,'Idioma':true,'Beca':true};EXF.est={Pagada:true,Pendiente:true};const D=exFactDet();EXF.soc=sv;EXF.tipo=tv;EXF.est=ev;add('Facturación','Facturación · Detalle','Una fila por comprobante: cuenta, proveedor, CUIT, N° y monto. Para comparar con los mayores.',D,{tope:52})}
+  if(S.presu){const F=exPresFlat(ejs.map(exPresDatos)),dn=['Presupuesto base','Ejecutado (sin DI)','Ejecutado DI','Real (ejecutado + DI)','Disponible / Excedido','Comprometido sin factura'];add('Presupuesto','Presupuesto · Por cuenta','Una fila por cuenta: base, ejecutado, DI, real y disponible o excedido.',F.cuentas,{dinero:dn});add('Presupuesto','Presupuesto · Detalle','Qué se imputó en cada cuenta (capacitaciones, idiomas, becas, DI).',F.detalle,{dinero:['Monto'],tope:52});add('Presupuesto','Presupuesto · DI','Las decisiones de inversión.',F.di,{dinero:['Monto']})}
+  if(S.prov)add('Proveedores','Proveedores','Contacto, mail, teléfono y CUIT.',DB.prov.map(x=>({'Proveedor':x.nom,'Contacto':x.contacto||'','Mail':x.mail||'','Teléfono':x.tel||'','CUIT':x.cuit||''})));
+  if(S.nom)add('Nómina','Nómina','Todas las personas, con posición, área, vertical, sociedad y líder.',DB.nom.map(x=>({'Legajo':x.legajo,'Colaborador':x.nombre,'Posición':x.posicion,'Área':x.unidad,'Vertical':x.vn,'Sociedad':x.sociedad,'Líder':x.liderC||x.lider,'Ingreso':x.ingreso,'Ciudad':x.ciudad})));
+  EX.solo=oldSolo;
+  let r=8;['Sección','Hoja','Qué trae','Filas'].forEach((t,i)=>{});
+  [['Hoja',2],['Qué trae',3],['Filas',4]].forEach(([t,c])=>{const x=idx.getCell(r,c);x.value=t;x.font=XL.fnt(10,true,'FFFFFF');x.fill=XL.fill('0B4855');x.alignment={vertical:'middle',indent:c===4?0:1,horizontal:c===4?'center':'left'}});idx.getRow(r).height=26;r++;
+  let ult=null;hojas.forEach(([sec,nom,desc,n])=>{if(sec!==ult){for(let c=2;c<=4;c++)idx.getCell(r,c).fill=XL.fill('EEF4F6');const t=idx.getCell(r,2);t.value=sec;t.font=XL.fnt(10,true,'008EAA');idx.getRow(r).height=22;r++;ult=sec}
+   const a=idx.getCell(r,2);a.value={text:nom,hyperlink:"#'"+nom.slice(0,31)+"'!A1"};a.font={...XL.fnt(10,true,'008EAA'),underline:true};a.alignment={vertical:'middle',indent:2};a.border={bottom:XL.fino};
+   const b=idx.getCell(r,3);b.value=desc;b.font=XL.fnt(9.5,false,'5B6B70');b.alignment={vertical:'middle',indent:1,wrapText:true};b.border={bottom:XL.fino};
+   const c=idx.getCell(r,4);c.value=n;c.font=XL.fnt(10,true);c.alignment={horizontal:'center',vertical:'middle'};c.border={bottom:XL.fino};c.numFmt='#,##0';idx.getRow(r).height=24;r++});
+  await xlBajar(wb,'Consolidado_'+exTag()+'_'+HOY+'.xlsx')
+ }catch(e){console.error(e);toast('No se pudo armar el consolidado: '+(e.message||e))}}
 V.exp=()=>{
- const ej=EX.ej||EJ,p=exPlan(),b=exBecas(),i=exIdiomas(),nf=exFact().length,hechas=p.caps.filter(c=>c['Estado']==='Finalizada').length;
- const card=(ico,tit,desc,hojas,cuentas,extra,fn,btn)=>`<div class="card" style="display:flex;flex-direction:column"><div class="card-b" style="display:flex;flex-direction:column;gap:10px;flex:1">
-   <div style="font-size:28px;line-height:1">${ico}</div><div style="font-weight:700;font-size:15px">${tit}</div><div class="sub2" style="font-size:12.5px;line-height:1.5">${desc}</div>
+ const ej=EX.ej||EJ;let nP=0,nB=0,nI=0,nF=0;
+ try{nP=DB.plan.filter(p=>ej==='*'||p.ej===ej).length;nB=DB.beca.filter(b=>b.veredicto==='Aprobada').length;nI=DB.idi.length;const sv=EXF.soc;nF=exFactDet().length;EXF.soc=sv}catch(e){}
+ const T=(k,ico,tit,desc,hojas,cuenta)=>{const on=EXS.abierta===k;return `<div class="card" style="cursor:pointer;${on?'border-color:var(--celeste);box-shadow:0 0 0 2px rgba(0,142,170,.18)':''}" onclick="EXS.abierta=${on?'null':"'"+k+"'"};refresh()"><div class="card-b" style="display:flex;flex-direction:column;gap:8px;height:100%">
+   <div style="display:flex;justify-content:space-between;align-items:center"><div style="font-size:28px;line-height:1">${ico}</div><span class="sub2" style="font-size:18px">${on?'▴':'▾'}</span></div>
+   <div style="font-weight:700;font-size:15px">${tit}</div><div class="sub2" style="font-size:12.5px;line-height:1.5">${desc}</div>
    <div style="display:flex;gap:6px;flex-wrap:wrap">${hojas.map(h=>`<span class="chip c-gris">${h}</span>`).join('')}</div>
-   <div style="font-size:12.5px;font-weight:600">${cuentas}</div>${extra||''}
-   <div style="margin-top:auto;padding-top:6px"><button class="btn" style="width:100%" onclick="${fn}">⬇ ${btn||'Descargar Excel'}</button></div></div></div>`;
+   <div style="font-size:12.5px;font-weight:600;margin-top:auto">${cuenta}</div></div></div>`};
+ const PAN={plan:['📋 Plan del ejercicio',exPanelPlan],becas:['🎓 Becas',exPanelBecas],idiomas:['💬 Idiomas',exPanelIdi],fact:['🧾 Facturación',exPanelFact],pres:['💰 Presupuesto',exPanelPres],todo:['📦 Consolidado de todo',exPanelTodo]};
  return `
  <div class="head"><div class="headrow"><div><div class="eyebrow">Consulta</div><h1>Exportar</h1>
-  <div class="sub">Bajá los datos en Excel. Cada hoja tiene filtros en el encabezado, así podés ver por ejemplo <b>qué personas fueron a cada curso</b>.</div></div>
-  <div><label class="sub2" style="display:block;margin-bottom:4px">Ejercicio a exportar</label>
-   <select class="fi" onchange="EX.ej=this.value;refresh()">${ejercicios().map(e=>`<option value="${e}" ${ej===e?'selected':''}>${e}${e===EJ?' (el que estás viendo)':''}</option>`).join('')}<option value="*" ${ej==='*'?'selected':''}>Todos los ejercicios</option></select></div></div></div>
- <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:14px">
-  ${card('📋','Plan del ejercicio','Cada capacitación con su proveedor, fechas, estado y montos, y <b>las personas que fueron a cada una</b> (con su asistencia cuando se tomó).',['Capacitaciones','Participantes','Por persona'],
-   `${p.caps.length} capacitaciones · ${hechas} finalizadas · ${p.part.length} participaciones`,
-   `<label class="check" style="font-size:12.5px"><input type="checkbox" ${EX.solo?'checked':''} onchange="EX.solo=this.checked;refresh()"> Solo lo que se hizo (en curso o finalizado)</label>`,'exPlanXls()')}
-  ${card('🎓','Becas','Cada beca con lo que cubrimos, lo pagado y lo que falta, y todos los pagos mes a mes (con su cuota).',['Becas','Pagos por mes'],`${b.becas.length} becas · ${b.pagos.length} pagos y cuotas`,'','exBecasXls()')}
-  ${card('💬','Idiomas','Todos los alumnos con su profe y fechas de alta y baja, las facturas de cada profe y qué personas entran en cada factura.',['Alumnos','Facturas','Personas por factura'],`${i.alumnos.length} cursadas · ${i.facturas.length} facturas`,'','exIdiXls()')}
-  ${card('🧾','Facturación','Todos los comprobantes del ejercicio: capacitaciones, gastos, idiomas y cuotas de becas, con N°, fechas y mes de pago.',['Facturación'],`${nf} comprobantes`,'','exFactXls()')}
-  ${card('📦','Todo junto','Un solo Excel con todas las hojas anteriores más presupuesto, proveedores y nómina.',['11 hojas'],'Ideal para tener todo en un archivo','','exTodoXls()','Descargar todo')}
+  <div class="sub">Elegí qué querés bajar: se abre la tarjeta y ahí decidís el ejercicio, los estados y lo que incluir. Todos los Excel salen con el mismo formato visual y con hojas filtrables.</div></div></div></div>
+ <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin-bottom:16px">
+  ${T('plan','📋','Plan del ejercicio','Cada capacitación con su info y las personas anotadas.',['Plan','Listado','Personas anotadas'],nP+' capacitaciones')}
+  ${T('becas','🎓','Becas','Cada beca con lo cubierto, lo pagado y sus pagos.',['Becas','Listado','Pagos'],nB+' becas aprobadas')}
+  ${T('idiomas','💬','Idiomas','Alumnos por profe y las facturas de cada uno.',['Idiomas','Alumnos','Facturas'],nI+' cursadas')}
+  ${T('fact','🧾','Facturación','El detalle para comparar con los mayores.',['Detalle','Por cuenta y mes','Por proveedor'],nF+' comprobantes')}
+  ${T('pres','💰','Presupuesto','Por cuenta, como viene en la app, con disponible o excedido.',['Presupuesto','Por cuenta','Detalle','DI'],'Cada cuenta se abre para ver el detalle')}
+  ${T('todo','📦','Consolidado de todo','Todo en un Excel: la hoja más completa de cada sección.',['Índice','Hasta 12 hojas'],'Para tener todo junto')}
  </div>
+ ${EXS.abierta?`<div class="card" style="margin-bottom:16px;border-color:var(--celeste)"><div class="card-h"><h2>${PAN[EXS.abierta][0]}</h2><div class="n">opciones de la exportación</div><button class="btn n s" onclick="EXS.abierta=null;refresh()">Cerrar</button></div><div class="card-b">${PAN[EXS.abierta][1]()}</div></div>`:'<div class="aviso">👆 Tocá una tarjeta para abrirla y elegir qué exportar.</div>'}
  <div class="aviso" style="margin-top:16px">Para guardar una copia completa de la app (y poder restaurarla) usá <b>Configuración → Descargar respaldo</b>.</div>`;
 };
 /* ═════════════ ARRANQUE ═════════════ */
