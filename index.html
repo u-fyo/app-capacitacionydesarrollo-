@@ -739,8 +739,6 @@ body{-webkit-tap-highlight-color:rgba(0,142,170,.18);overscroll-behavior-y:none}
  .btn{min-height:42px}.btn.s{min-height:36px}.acts{gap:8px}.acts .btn{flex:1 1 auto;justify-content:center}
  input,select,textarea,.fi,.f input,.f select,.f textarea{font-size:16px!important;max-width:100%;min-width:0}
  .filtros{padding:12px}.filtros .fgrid,.fgrid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
- .ov{align-items:flex-end!important;padding:0!important}
- .mdl{width:100%!important;max-width:100%!important;max-height:92vh;max-height:92dvh;border-radius:22px 22px 0 0!important;margin:0}
  .mdl-h{padding:16px 18px}.mdl-b{padding:16px 16px calc(26px + env(safe-area-inset-bottom,0px))}
  .gs-panel{width:calc(100vw - 20px);max-width:100%;max-height:82dvh}
  .savebar{bottom:calc(10px + env(safe-area-inset-bottom,0px));border-radius:22px;padding:10px 12px;flex-wrap:wrap;gap:8px}
@@ -794,6 +792,35 @@ body{-webkit-tap-highlight-color:rgba(0,142,170,.18);overscroll-behavior-y:none}
 .acc[open]>summary .acc-n{background:#E3F3F6;color:var(--celeste)}
 .acc-b{padding:4px 18px 18px}
 @media(max-width:720px){.stp-b{padding:14px}.stp-h{padding:12px 14px}.rpt-h{font-size:21px}}
+
+/* ── acciones de una capacitación: íconos de línea y opciones claras ── */
+.ib{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;border:1.5px solid var(--linea);background:#fff;color:var(--carbon);cursor:pointer;vertical-align:middle}
+.ib:hover{border-color:var(--celeste);color:var(--celeste);background:var(--niebla)}
+.btn svg{vertical-align:-3px;margin-right:6px}
+.acc-grid{display:grid;gap:10px}
+.acc-op{display:flex;gap:14px;align-items:center;text-align:left;background:#fff;border:1.5px solid var(--linea);border-radius:16px;padding:14px 16px;cursor:pointer;font:inherit;color:inherit;transition:border-color .15s}
+.acc-op:hover{border-color:var(--celeste)}
+.acc-op b{font-size:14.5px}.acc-op small{display:block;font-size:12px;color:var(--gris);margin-top:2px;line-height:1.45;font-weight:400}
+.acc-ic{width:44px;height:44px;border-radius:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.acc-peligro{margin-top:18px;border:1.5px dashed var(--rojo);border-radius:16px;padding:14px 16px;background:#FFF9F9}
+.head.hero .btn.g svg{margin-right:6px}
+
+/* Facturación · comprobantes: que entre en el ancho sin correr hacia el costado */
+table.fit{width:100%;font-size:12.5px}
+table.fit th,table.fit td{padding:10px 8px}
+table.fit .fi{padding:6px 8px;font-size:12.5px;max-width:100%}
+table.fit td .nom{font-size:13px;line-height:1.35}
+
+/* celular: la ventana ocupa la pantalla y scrollea entera (como una hoja); el fondo queda quieto */
+body.modal-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
+@media(max-width:720px){
+ .ov{align-items:flex-start!important;padding:0!important;overflow-y:auto!important;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+ .mdl{display:block!important;width:100%!important;max-width:100%!important;max-height:none!important;overflow:visible!important;border-radius:22px 22px 0 0!important;margin:auto 0 0 0!important;min-height:0}
+ .mdl>.mdl-h{position:sticky;top:0;z-index:3;border-radius:22px 22px 0 0;padding-top:calc(15px + env(safe-area-inset-top,0px))}
+ .mdl-b{padding-bottom:calc(26px + env(safe-area-inset-bottom,0px))}
+ .mdl-b .acts{position:sticky;bottom:0;background:#fff;padding:12px 0 calc(10px + env(safe-area-inset-bottom,0px));margin-top:14px;border-top:1px solid var(--linea-2);z-index:2}
+}
+@media(min-width:721px){body.modal-open{position:static;overflow:hidden}}
 </style>
 </head>
 <body>
@@ -1210,9 +1237,12 @@ const fmtMoney=v=>{let t=String(v==null?'':v);if(/^-?\d+\.\d+$/.test(t))t=String
 window.addEventListener('error',e=>{const m=String(e.message||'');if(/ResizeObserver|Script error/i.test(m))return;try{toast('⚠️ Error: '+m)}catch(x){}});
 window.addEventListener('unhandledrejection',e=>{try{toast('⚠️ Error: '+((e.reason&&e.reason.message)||e.reason||'desconocido'))}catch(x){}});
 /* ── modal ── */
+/* mientras hay una ventana abierta, el fondo no se mueve (en el celular se scrolleaba la pantalla de atrás) */
+function bloquearFondo(on){const b=document.body;if(on){if(!b.classList.contains('modal-open')){window._sy=window.scrollY||0;b.style.top='-'+window._sy+'px';b.classList.add('modal-open')}}
+ else if(b.classList.contains('modal-open')){b.classList.remove('modal-open');b.style.top='';window.scrollTo(0,window._sy||0)}}
 function modal(h,cls){$('#mdl').className='mdl'+(cls?' '+cls:'');$('#mdl').innerHTML=h;
- $('#ov').classList.add('on');document.body.style.overflow=''}
-function cerrar(){$('#ov').classList.remove('on');document.body.style.overflow=''}
+ $('#ov').classList.add('on');$('#ov').scrollTop=0;bloquearFondo(true)}
+function cerrar(){$('#ov').classList.remove('on');bloquearFondo(false)}
 $('#ov').onclick=e=>{if(e.target.id==='ov')cerrar()};
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){if($('#ov').classList.contains('on'))cerrar();
  else if($('#gsBox').classList.contains('on'))cerrarGS()}});
@@ -1372,9 +1402,16 @@ function migrarMG2627(){
   act.parts.push(fill(r.nombre));info.sumados++});
  window._mgInfo=info;return info}
 function migrarPostCarga(){
+ if(!DB.acc)DB.acc=[];
  DB.mig=DB.mig||{};let c=false;
  DB.plan.forEach(p=>{if(!p.linea&&p.ej==='26.27'&&p.prov==='Interna'&&/^Mercado (granario|de capitales)$/.test(p.nom)){p.linea='Conocé';c=true}});
  DB.plan.forEach(p=>{if(!p.linea){p.linea='Crecé';c=true}});   /* todo lo que no tenga línea es Crecé */
+ /* coaching / potencial / assessment: el "encuentro de inicio" automático los hacía terminar el mismo día */
+ if(!DB.mig.coachAbierto){DB.mig.coachAbierto=1;DB.plan.forEach(p=>{if(esAbierto(p)&&(p.enc||[]).length===1&&/ · inicio$/.test(p.enc[0].tit||'')){if(!p.ini)p.ini=p.enc[0].fecha;p.enc=[];c=true}})}
+ /* proveedores: se cargan los datos del Excel completado */
+ if(!DB.mig.provExcel1110&&DB.prov.length){DB.mig.provExcel1110=1;const i=migrarProvExcel();c=true;setTimeout(()=>toast('Proveedores: se completaron los datos de '+i.act+' proveedores'+(i.noEnc.length?' · no encontré: '+i.noEnc.join(', '):'')),3200)}
+ /* se quita la nota "Cuenta nueva en 26/27: toma el presupuesto de…" */
+ if(!DB.mig.notaCtaNueva){DB.mig.notaCtaNueva=1;(DB.part||[]).forEach(x=>{if(/Cuenta nueva en 26\/27/i.test(x.nota||'')){x.nota='';c=true}})}
  /* Nulinga de noviembre 2026: altas y bajas detectadas y cambios manuales */
  if(!DB.mig.nul1110&&DB.idi.some(x=>esNulinga(x.profe))){DB.mig.nul1110=1;const i=migrarNulinga1110();c=true;setTimeout(()=>toast('Nulinga noviembre: '+i.a+' altas, '+i.b+' bajas detectadas'+(i.r?', '+i.r+' reactivadas':'')+' · '+i.bajas.length+' bajas de noviembre'+(i.hanson==='alta'?' · alta de Hanson':'')+(i.noEnc.length?' · no encontré a '+i.noEnc.join(', '):'')),4200)}
  /* Mercado granario 26-27: participantes del listado de convocados */
@@ -1486,7 +1523,7 @@ V.plan=(arg)=>{
   &&(!F.vn||p.parts.some(x=>x.est!=='Baja'&&x.vn===F.vn))
   &&(!setF||p.parts.some(x=>x.est!=='Baja'&&setF.has(x.nom)))
   &&(!F.un||p.parts.some(x=>x.est!=='Baja'&&x.un===F.un))
-  &&(!F.linea||(F.linea==='Sin línea'?!p.linea:p.linea===F.linea))&&(!F.carg||(F.carg==='Sin asignar'?!p.carg:p.carg===F.carg))&&(!F.arr||p.arrastra)&&(!F.rep||p.parts.some(x=>x.repetir&&x.est!=='Baja'))&&(!F.sinFli||(!p.fli&&!['Finalizada','Cancelada','Diferida'].includes(p.est)))&&(!F.sinImp||!p.real)&&(!F.sinFecha||!p.enc.length)&&(!F.sinPart||!activos(p).length)&&(!F.prox||p.prox)
+  &&(!F.linea||(F.linea==='Sin línea'?!p.linea:p.linea===F.linea))&&(!F.carg||(F.carg==='Sin asignar'?!p.carg:p.carg===F.carg))&&(!F.arr||p.arrastra)&&(!F.rep||p.parts.some(x=>x.repetir&&x.est!=='Baja'))&&(!F.sinFli||(!p.fli&&!['Finalizada','Cancelada','Diferida'].includes(p.est)))&&(!F.sinImp||!p.real)&&(!F.sinFecha||!actFechas(p).ini)&&(!F.sinPart||!activos(p).length)&&(!F.prox||p.prox)
   &&(!F.q||(p.nom+' '+p.prov+' '+(p.notas||'')+' '+p.parts.map(x=>x.nom).join(' ')).toLowerCase().includes(F.q.toLowerCase())));
  const sr=L.reduce((a,p)=>a+p.real,0), sp=L.reduce((a,p)=>a+p.ppto,0);
  const pers=new Set();L.forEach(p=>activos(p).forEach(x=>pers.add(x.nom)));
@@ -1530,7 +1567,7 @@ V.plan=(arg)=>{
   ${(()=>{const n=P.filter(p=>!p.fli&&!['Finalizada','Cancelada','Diferida'].includes(p.est)).length;return `<button class="cb ${F.sinFli?'on':''}" style="--cbc:#E09B00" title="Capacitaciones a las que todavía no se mandó la invitación (sin fecha de inscripción), aunque ya tengan fecha de inicio" onclick="F.sinFli=!F.sinFli;refresh()"><i style="background:#E09B00"></i>📨 Sin fecha de inscripción <b>${n}</b></button>`})()}
  </div>
  ${(m=>`<div class="mets">
-  ${met('Inscripciones',m.insc,'personas con invitación enviada (fecha de inscripción) · cada persona suma una por capacitación'+(m.detI.length?'<div style="margin-top:6px;font-size:11.5px;line-height:1.5">'+m.detI.slice(0,4).map(x=>esc(x.nom.length>34?x.nom.slice(0,33)+'…':x.nom)+' <b>'+x.n+'</b>').join('<br>')+(m.detI.length>4?'<br>+ '+(m.detI.length-4)+' más':'')+'</div>':''),'met-tot cel')}
+  ${met('Inscripciones',m.insc,'sale de la fecha de inscripción · cada persona suma una por capacitación','met-tot cel')}
   ${met('Capacitaciones únicas',m.unicas,'','met-eje')}
   ${met('% de la nómina capacitada',m.pct+'%',`${m.cap} de ${m.dot} personas de la nómina`,'met-dis ok')}
  </div>`)(planMetricas(L))}
@@ -1542,10 +1579,10 @@ V.plan=(arg)=>{
    const fx=actFechas(p),fs=fx.ini?(fx.fin&&fx.fin!==fx.ini?fecha(fx.ini)+' → '+fecha(fx.fin):fecha(fx.ini)):'<span class="chip c-gris">Por definir</span>';
    const m=p.real||p.ppto||0,nros=[...DB.fact.filter(x=>x.aid===p.id&&x.nro).map(x=>x.nro),...(p.gastos||[]).filter(g=>g.nro).map(g=>g.nro)];
    return `<tr class="clic" onclick="ir('act','${p.id}')">
-   <td><div class="nom">${esc(p.nom)} ${linChip(p)}${p.arrastra?'<span class="chip c-dif" title="Venía del ejercicio anterior y quedó pendiente">↩ Arrastra del ej. pasado</span> ':''}${p.presup==='Fuera'?`<span class="chip c-fue" title="Decisión de inversión${p.aprob?' · aprobó '+esc(p.aprob):''}">DI</span>`:''}</div>
+   <td><div class="nom">${esc(p.nom)} ${linChip(p)}${p.prox?'<span class="chip c-gris" title="Marcada para pasar al próximo ejercicio">Pasa al próximo ejercicio</span> ':''}${p.diferidaA?`<span class="chip c-gris">Pasó al ${esc(p.diferidaA)}</span> `:''}${p.arrastra?'<span class="chip c-dif" title="Venía del ejercicio anterior y quedó pendiente">↩ Arrastra del ej. pasado</span> ':''}${p.presup==='Fuera'?`<span class="chip c-fue" title="Decisión de inversión${p.aprob?' · aprobó '+esc(p.aprob):''}">DI</span>`:''}</div>
     <div class="sub2">${p.dict==='Interno'?'Interna':'Externa'}${(p.notas||p.accion)?' · '+esc((p.notas||p.accion).slice(0,54)):''}</div></td>
    <td><span class="chip c-gris">${esc(p.tipo)}${p.sub?' · '+esc(p.sub):''}</span></td>
-   <td class="sub2">${esc(p.prov||'—')}</td>
+   <td class="sub2">${esc(p.prov||'—')}${p.coach?`<div style="font-size:11px">Coach: ${esc(p.coach)}</div>`:''}</td>
    <td class="num" style="font-size:12px;white-space:nowrap">${fs}</td>
    <td class="r num">${rec?`<b>${activos(p).filter(enRec).length}</b><span class="sub2">de ${activos(p).length}</span>`:activos(p).length}${tieneAsis(p)?`<div class="sub2" style="font-size:10.5px">${asisProm(p)}% asist.</div>`:''}</td>
    <td class="r num" style="font-weight:600">${m?plata(m):'<span style="font-weight:400;color:var(--gris)">—</span>'}${!p.real&&p.ppto?'<div class="sub2" style="font-weight:400;font-size:10.5px">previsto</div>':''}</td>
@@ -1553,10 +1590,7 @@ V.plan=(arg)=>{
    <td>${chip(p.est)}</td>
    <td class="sub2" style="white-space:nowrap">${esc(p.carg||'—')}</td>
    <td class="r" onclick="event.stopPropagation()" style="white-space:nowrap">
-    ${p.encuesta?`<button class="btn n s" title="Abrir la encuesta" onclick="abrirEncuesta('${p.id}')">📋</button> `:''}<button class="btn ${p.prox?'':'n'} s" title="${p.prox?'Pasa al '+sigEj(EJ)+' — tocá para sacarla':'Marcar para que pase al '+sigEj(EJ)}" onclick="togProx('${p.id}')">⏭️</button>
-    <select class="fi" style="padding:3px 4px;font-size:11px;width:34px" title="Cancelar, diferir o volver al estado automático" onchange="event.stopPropagation();cambiarEst('${p.id}',this.value);this.value=''">
-     <option value="">⋯</option><option value="Cancelada">Cancelar</option><option value="Diferida">Diferir</option><option value="auto">Estado automático</option></select>
-    <button class="btn n s" onclick="borrarAct('${p.id}')">✕</button></td></tr>`}).join('')
+    ${p.encuesta?`<button class="ib" title="Abrir la encuesta" onclick="abrirEncuesta('${p.id}')">${ico('clip')}</button> `:''}<button class="ib" title="Acciones: pasar a otro ejercicio, cancelar o eliminar" onclick="accionesAct('${p.id}')">${ico('dots')}</button></td></tr>`}).join('')
   :'<tr><td colspan="9"><div class="vacio"><b>Ninguna capacitación coincide</b>Probá limpiar los filtros o cargá una nueva.</div></td></tr>'}</tbody>
   ${L.length?`<tfoot><tr><td colspan="5">Total de lo listado</td><td class="r num">${plata(L.reduce((a,p)=>a+(p.real||p.ppto||0),0))}</td><td colspan="3"></td></tr></tfoot>`:''}
  </table></div></div></div>`;
@@ -1601,14 +1635,16 @@ V.act=(id)=>{
    <div class="chips" style="margin-top:9px">${chip(p.est)}${linChip(p)}${p.arrastra?'<span class="chip c-dif" title="Venía del ejercicio anterior y quedó pendiente">↩ Arrastra del ej. pasado</span>':''}${tieneAsis(p)?`<span class="chip c-cur" title="Promedio de asistencia sobre los encuentros de cada persona">Asistencia ${asisProm(p)}%</span>`:''}${p.sub?`<span class="chip c-cur">${esc(p.sub)}</span>`:''}
     ${fchip(p.foco)}<span class="chip ${p.dict==='Interno'?'c-int':'c-ext'}">${p.dict==='Interno'?'La dictamos nosotros':'Proveedor externo'}</span>
     ${p.presup==='Fuera'?'<span class="chip c-fue">Fuera de presupuesto</span>':'<span class="chip c-gris">Dentro del presupuesto</span>'}
-    <span class="chip c-gris">${esc(p.prov)}</span></div></div>
+    <span class="chip c-gris">${esc(p.prov)}</span>${p.coach?` <span class="chip c-gris">Coach: ${esc(p.coach)}</span>`:''}</div></div>
    <div style="display:flex;gap:8px;flex-wrap:wrap">
-    ${p.encuesta?`<button class="btn g" title="Abrir la encuesta de esta capacitación" onclick="abrirEncuesta('${p.id}')">📋 Encuesta</button>`:''}
-    <button class="btn g" title="Crear la misma capacitación para otra edición" onclick="nuevaEdicion('${p.id}')">➕ Próxima edición</button>
-    <button class="btn d" onclick="borrarAct('${p.id}')">Eliminar</button></div></div>
+    ${p.encuesta?`<button class="btn g" title="Abrir la encuesta de esta capacitación" onclick="abrirEncuesta('${p.id}')">${ico('clip')} Encuesta</button>`:''}
+    <button class="btn g" title="Crear la misma capacitación para otra edición" onclick="nuevaEdicion('${p.id}')">${ico('plus')} Próxima edición</button>
+    <button class="btn g" title="Pasar a otro ejercicio, cancelar o eliminar" onclick="accionesAct('${p.id}')">${ico('dots')} Acciones</button></div></div>
   ${p.motivo?`<div class="aviso w" style="margin-top:14px"><b>${p.est}:</b> ${esc(p.motivo)}</div>`:''}
   ${(p.notas||p.accion)?`<div class="aviso" style="margin-top:14px">${p.notas?`<b>📝 Notas:</b> ${esc(p.notas)}`:''}${p.notas&&p.accion?'<br>':''}${p.accion?`<b>Pendiente:</b> ${esc(p.accion)}`:''}</div>`:''}
   ${p.edicionDe&&acto(p.edicionDe)?`<div class="aviso" style="margin-top:14px">↻ <b>${p.edicion||2}.ª edición</b> de <a href="#" onclick="ir('act','${p.edicionDe}');return false">${esc(acto(p.edicionDe).nom)}</a></div>`:''}
+  ${p.origenId&&acto(p.origenId)?`<div class="aviso" style="margin-top:14px">Viene del ejercicio ${esc(p.origenEj||'')}: <a href="#" onclick="ir('act','${p.origenId}');return false">${esc(acto(p.origenId).nom)}</a></div>`:''}
+  ${trazaCard(p)}
  </div>
 
  <div class="mets" id="fimets">${fiMetsHtml(p)}</div>
@@ -1623,23 +1659,25 @@ V.act=(id)=>{
 V.act.after=()=>{if(FITAB){tab('fi',FITAB);FITAB=0}};
 
 /* qué estado le toca según las fechas y cuánto falta; se recalcula apenas se completa una fecha */
-function cuandoInfo(ini,fin,fli){
- const d=x=>Math.round((s2d(x)-s2d(HOY))/86400000),pl=n=>n===1?'':'s',fin2=fin||ini;
+function cuandoInfo(ini,fin,fli,abierto){
+ const d=x=>Math.round((s2d(x)-s2d(HOY))/86400000),pl=n=>n===1?'':'s',fin2=fin||(abierto?'':ini);
+ if(abierto&&!fin&&ini)return ini<=HOY?{est:'En curso',txt:'<b>En curso</b> ahora · todavía sin fecha de finalización',rng:fecha(ini)+' → sin fin'}:{est:fli?'Inscripto':'Pendiente',txt:`Empieza en <b>${d(ini)} día${pl(d(ini))}</b>`,rng:fecha(ini)};
  if(!ini)return{est:fli?'Inscripto':'Pendiente',txt:fli?'Invitación enviada · todavía sin fecha de inicio cargada':'Todavía no tiene fecha de inicio cargada',rng:''};
  const rng=fecha(ini)+(fin2&&fin2!==ini?' → '+fecha(fin2):'');
  if(fin2<HOY)return{est:'Finalizada',txt:`Terminó hace <b>${-d(fin2)} día${pl(-d(fin2))}</b>`,rng};
  if(ini<=HOY)return{est:'En curso',txt:'<b>En curso</b> ahora'+(fin2>HOY?` · faltan <b>${d(fin2)} día${pl(d(fin2))}</b> para que termine`:''),rng};
  return{est:fli?'Inscripto':'Pendiente',txt:`Empieza en <b>${d(ini)} día${pl(d(ini))}</b>`,rng}}
 function fiCuando(){
- const g=k=>(document.getElementById(k)||{}).value||'',ci=cuandoInfo(g('e_ini'),g('e_fin')||g('e_ini'),g('e_fli'));
+ const g=k=>(document.getElementById(k)||{}).value||'',ab_=(document.getElementById('e_fin')||{dataset:{}}).dataset.abierto==='1',ci=cuandoInfo(g('e_ini'),ab_?g('e_fin'):(g('e_fin')||g('e_ini')),g('e_fli'),ab_);
  const c=document.getElementById('cuando_chip'),t=document.getElementById('cuando_txt'),r=document.getElementById('cuando_rng');
  if(c)c.innerHTML=chip(ci.est);if(t)t.innerHTML=ci.txt;if(r)r.textContent=ci.rng}
 function fiDatos(p){
- const f=actFechas(p),ci=cuandoInfo(f.ini,f.fin,p.fli);
+ const f=actFechas(p),ci=cuandoInfo(f.ini,f.fin,p.fli,esAbierto(p));
  return `
  <div class="sec a"><div class="sec-h"><div class="sec-ic">📘</div><div><h3>Qué es</h3><p>Nombre, proveedor y características de la capacitación</p></div></div><div class="sec-b"><div class="form">
    <div class="f full"><label>Nombre</label><input id="e_nom" value="${esc(p.nom)}" style="font-size:15px;font-weight:600"></div>
    <div class="f"><label>Proveedor o institución</label><input id="e_prov" value="${esc(p.prov)}" list="dlProvF"></div>
+   ${esAbierto(p)?`<div class="f"><label>Nombre de la coach <span class="sub2" style="font-weight:400">· opcional</span></label><input id="e_coach" value="${esc(p.coach||'')}" placeholder="Ej: Guido Dichiara"></div>`:''}
    <div class="f"><label>Tipo</label><select id="e_tipo">${TIPOS.map(t=>`<option ${p.tipo===t?'selected':''}>${t}</option>`).join('')}</select></div>
    <div class="f"><label>Foco</label><select id="e_foco">${FOCOS.map(t=>`<option ${p.foco===t?'selected':''}>${t}</option>`).join('')}</select></div>
    <div class="f"><label>Línea (Conocé · Crecé · Explorá)</label><select id="e_lin"><option value="">Sin línea</option>${LINEAS.map(t=>`<option ${p.linea===t?'selected':''}>${t}</option>`).join('')}</select></div>
@@ -1655,8 +1693,8 @@ function fiDatos(p){
    <div class="f"><label>Estado</label><select id="e_est" onchange="document.getElementById('mot_box').style.display=(this.value==='Cancelada'||this.value==='Diferida')?'block':'none'">${ESTADOS.map(t=>`<option ${p.est===t?'selected':''}>${t}</option>`).join('')}</select></div>
    <div class="f"><label>Fecha de inscripción</label><input type="date" id="e_fli" value="${p.fli||''}" oninput="fiCuando()" onchange="fiCuando()"><div class="hint">Se completa cuando se mandan las invitaciones.</div></div>
    <div class="f"><label>Fecha de inicio</label><input type="date" id="e_ini" value="${f.ini}" oninput="fiCuando()" onchange="fiCuando()" ${p.enc.length?'readonly title="Sale del primer encuentro"':''}></div>
-   <div class="f"><label>Fecha de fin</label><input type="date" id="e_fin" value="${p.enc.length?f.fin:(p.fin||'')}" oninput="fiCuando()" onchange="fiCuando()" ${p.enc.length?'readonly title="Sale del último encuentro"':''}>
-    <div class="hint">${p.enc.length?'Salen de las fechas de los encuentros.':'Si no la ponés, termina el mismo día que empieza.'}</div></div>
+   <div class="f"><label>Fecha de fin</label><input type="date" id="e_fin" data-abierto="${esAbierto(p)?1:0}" value="${esAbierto(p)?(p.fin||''):(p.enc.length?f.fin:(p.fin||''))}" oninput="fiCuando()" onchange="fiCuando()" ${p.enc.length&&!esAbierto(p)?'readonly title="Sale del último encuentro"':''}>
+    <div class="hint">${esAbierto(p)?'Dejala vacía mientras siga en curso: cuando la completes, pasa a Finalizada.':p.enc.length?'Salen de las fechas de los encuentros.':'Si no la ponés, termina el mismo día que empieza.'}</div></div>
    <div class="f full" id="mot_box" style="display:${p.est==='Cancelada'||p.est==='Diferida'?'block':'none'}"><label>Motivo de cancelación o postergación</label><textarea id="e_mot" placeholder="Obligatorio si el estado es Cancelada o Diferida">${esc(p.motivo||'')}</textarea></div>
   </div></div></div>
 
@@ -1673,6 +1711,7 @@ function fiDatos(p){
 
  <div class="sec d"><div class="sec-h"><div class="sec-ic">📝</div><div><h3>Seguimiento</h3><p>Notas y pendientes de esta capacitación</p></div></div><div class="sec-b"><div class="form">
    <div class="f full"><label>Link de la encuesta de satisfacción</label><input id="e_enc" type="url" placeholder="https://…" value="${esc(p.encuesta||'')}"><div class="hint">Es la que se manda cuando termina. Queda como botón “Encuesta” arriba, en el Plan y en la solapa Participantes.</div></div>
+   <div class="f full"><label>Otros links <span class="sub2" style="font-weight:400">· opcional</span></label><div id="e_links">${(p.links||[]).map(l=>linkRow(l.url,l.ref)).join('')}</div><button type="button" class="btn n s" onclick="linkAdd('e_links')">+ Agregar link</button><div class="hint">Para material, documentos o lo que haga falta. Al lado de cada link dejá una referencia de qué es.</div></div>
    <div class="f full"><label>Notas</label><textarea id="e_notas" style="min-height:84px">${esc(p.notas||'')}</textarea></div>
    <div class="f full"><label>Pendiente / acción</label><input id="e_accion" value="${esc(p.accion||'')}" placeholder="Qué falta hacer o a quién hay que esperar"></div>
   </div></div></div>
@@ -1683,6 +1722,7 @@ function fiDatos(p){
 }
 function guardarAct(id){
  const p=acto(id),g=i=>{const e=document.getElementById(i);return e?e.value:''};
+ if(!window._provYaF){const inp=document.getElementById('e_prov');if(inp&&inp.value.trim()!==p.prov){if(provAsk('e_prov',()=>{window._provYaF=true;try{guardarAct(id)}finally{window._provYaF=false}},p.prov))return}}
  const antesReal=p.real;
  const est=g('e_est'),mot=g('e_mot').trim();
  if((est==='Cancelada'||est==='Diferida')&&!mot){toast('Poné el motivo: es obligatorio para cancelar o diferir');
@@ -1698,6 +1738,8 @@ function guardarAct(id){
  if(document.getElementById('e_sub'))p.sub=g('e_sub');
  if(document.getElementById('e_lin'))p.linea=g('e_lin');
  if(document.getElementById('e_enc')){const u=urlOk(g('e_enc'));if(u)p.encuesta=u;else delete p.encuesta}
+ if(document.getElementById('e_links')){const L=linksLeer('e_links');if(L.length)p.links=L;else delete p.links}
+ if(document.getElementById('e_coach')){const v=g('e_coach').trim();if(v)p.coach=v;else delete p.coach}
  syncEstadosAct();
  if(p.prov&&!DB.prov.some(x=>x.nom===p.prov))
   DB.prov.push({id:uid('P'),nom:p.prov,tipos:[p.tipo],mail:'',tel:'',cuit:'',contacto:'',notas:''});
@@ -1708,11 +1750,13 @@ function mesesAct(p){const s=new Set();(p.enc||[]).forEach(e=>{if(e.fecha)s.add(
  const{ini,fin}=actFechas(p);if(ini){let m=ini.slice(0,7);const f=(fin||ini).slice(0,7);let g=0;while(m<=f&&g<60){s.add(m);m=addMes(m,1);g++}}
  return s}
 const mesOk=(p,m)=>!m||(m==='sin'?mesesAct(p).size===0:mesesAct(p).has(m));
+/* coaching, potencial y assessment: siguen en curso hasta que se cargue la fecha de finalización */
+const esAbierto=p=>p.tipo==='Coaching'||p.tipo==='Assessment'||p.sub==='Potencial'||p.sub==='Coaching'||p.sub==='Assessment';
 function actFechas(p){
- /* inicio = primer encuentro (o la fecha de inicio); fin = último encuentro (o la fecha de fin). Sin fin, termina el mismo día. */
+ /* inicio = primer encuentro (o la fecha de inicio); fin = último encuentro (o la fecha de fin). Sin fin, termina el mismo día (menos en coaching/potencial/assessment: ahí queda abierto). */
  const encs=(p.enc||[]).map(e=>e.fecha).filter(Boolean).sort();
  const ini=[encs[0],p.ini].filter(Boolean).sort()[0]||p.freal||'';
- const fin=[encs[encs.length-1],p.fin].filter(Boolean).sort().pop()||ini;
+ const fin=(esAbierto(p)&&!p.fin)?'':([encs[encs.length-1],p.fin].filter(Boolean).sort().pop()||ini);
  return{ini,fin}
 }
 /* Inscripto: se completó la inscripción · En curso: desde la fecha de inicio · Finalizada: al llegar la fecha de fin o el último encuentro */
@@ -1730,7 +1774,7 @@ function syncEstadosAct(){let c=false;
  if(c)guardar()}
 function cambiarEst(id,v){
  const p=acto(id);
- if(v==='auto'){p.est='Pendiente';p.motivo='';syncEstadosAct();guardar();refresh();toast('Vuelve al estado automático');return}
+ if(v==='auto'){trazar(p,'Reactivada','Estado automático',{a:'Automático'});p.est='Pendiente';p.motivo='';syncEstadosAct();guardar();refresh();toast('Vuelve al estado automático');return}
  if((v==='Cancelada'||v==='Diferida')&&!p.motivo){
   modal(cab('Motivo obligatorio',esc(p.nom))+`<div class="mdl-b">
    <div class="f full"><label>¿Por qué queda ${v.toLowerCase()}?</label>
@@ -1741,7 +1785,7 @@ function cambiarEst(id,v){
 function setEstMot(id,v){
  const m=document.getElementById('cm_mot').value.trim();
  if(!m){toast('Poné el motivo');return}
- const p=acto(id);p.est=v;p.motivo=m;guardar();cerrar();refresh();toast('Actualizada')}
+ const p=acto(id);trazar(p,v==='Cancelada'?'Cancelada':'Diferida',m,{a:v});p.est=v;p.motivo=m;guardar();cerrar();refresh();toast('Actualizada · quedó registrado el motivo')}
 function togProx(id){const p=acto(id);p.prox=!p.prox;guardar();refresh();
  toast(p.prox?'Marcada para el '+sigEj(EJ):'Ya no está marcada')}
 function masivo(que){
@@ -1751,7 +1795,7 @@ function masivo(que){
   &&(!F.vn||p.parts.some(x=>x.est!=='Baja'&&x.vn===F.vn))
   &&(!setF||p.parts.some(x=>x.est!=='Baja'&&setF.has(x.nom)))
   &&(!F.un||p.parts.some(x=>x.est!=='Baja'&&x.un===F.un))
-  &&(!F.linea||(F.linea==='Sin línea'?!p.linea:p.linea===F.linea))&&(!F.carg||(F.carg==='Sin asignar'?!p.carg:p.carg===F.carg))&&(!F.arr||p.arrastra)&&(!F.rep||p.parts.some(x=>x.repetir&&x.est!=='Baja'))&&(!F.sinFli||(!p.fli&&!['Finalizada','Cancelada','Diferida'].includes(p.est)))&&(!F.sinImp||!p.real)&&(!F.sinFecha||!p.enc.length)&&(!F.sinPart||!activos(p).length)&&(!F.prox||p.prox)
+  &&(!F.linea||(F.linea==='Sin línea'?!p.linea:p.linea===F.linea))&&(!F.carg||(F.carg==='Sin asignar'?!p.carg:p.carg===F.carg))&&(!F.arr||p.arrastra)&&(!F.rep||p.parts.some(x=>x.repetir&&x.est!=='Baja'))&&(!F.sinFli||(!p.fli&&!['Finalizada','Cancelada','Diferida'].includes(p.est)))&&(!F.sinImp||!p.real)&&(!F.sinFecha||!actFechas(p).ini)&&(!F.sinPart||!activos(p).length)&&(!F.prox||p.prox)
   &&(!F.q||(p.nom+' '+p.prov).toLowerCase().includes(F.q.toLowerCase())));
  if(!L.length){toast('No hay filas listadas');return}
  const txt={prox:`marcar las <b>${L.length}</b> actividades listadas para el ${sigEj(EJ)}`,
@@ -1779,9 +1823,70 @@ function doMasivo(que){
     parts:p.parts.map(x=>({...x,est:'Inscripto',motivo:''}))});
    DB.plan.push(c)}});
  guardar();cerrar();refresh();toast(ids.length+' actividades actualizadas')}
-function borrarAct(id){const p=acto(id);
- confirmar(`Vas a eliminar <b>${esc(p.nom)}</b> con sus ${p.parts.length} participantes y sus facturas. No se puede deshacer.`,
-  `()=>{DB.plan=DB.plan.filter(x=>x.id!=='${id}');DB.fact=DB.fact.filter(f=>f.aid!=='${id}');guardar();ir('plan');toast('Capacitación eliminada')}`)}
+/* links opcionales (material, documentos, grabaciones…) con una referencia de qué es */
+function linkRow(url,ref){return `<div class="lnk" style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><input class="fi l_url" type="url" placeholder="https://… (material, documento, grabación)" style="flex:2;min-width:0" value="${esc(url||'')}"><input class="fi l_ref" placeholder="Qué es (ej: Material del curso)" style="flex:1;min-width:0" value="${esc(ref||'')}">${url?`<a class="btn n s" href="${esc(url)}" target="_blank" rel="noopener" title="Abrir el link">Abrir</a>`:''}<button type="button" class="btn n s" title="Quitar este link" onclick="this.parentElement.remove()">✕</button></div>`}
+function linkAdd(cid){const c=document.getElementById(cid);if(!c)return;c.insertAdjacentHTML('beforeend',linkRow('',''));const i=c.querySelectorAll('.l_url');i[i.length-1].focus()}
+function linksLeer(cid){const c=document.getElementById(cid);if(!c)return [];return [...c.querySelectorAll('.lnk')].map(r=>({url:urlOk((r.querySelector('.l_url').value||'').trim()),ref:(r.querySelector('.l_ref').value||'').trim()})).filter(x=>x.url)}
+/* íconos de línea (reemplazan a los emojis en los botones de acción) */
+const ICO={dots:'<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>',
+ cal:'<rect x="3" y="4" width="18" height="17" rx="3"/><path d="M8 2v4M16 2v4M3 10h18M10 15h6m0 0-2.5-2.5M16 15l-2.5 2.5"/>',
+ x:'<circle cx="12" cy="12" r="9"/><path d="M15 9l-6 6M9 9l6 6"/>',trash:'<path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/>',
+ clip:'<rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4h6v3H9zM9 12h6M9 16h4"/>',plus:'<path d="M12 5v14M5 12h14"/>',undo:'<path d="M9 7 4 12l5 5"/><path d="M4 12h10a6 6 0 0 1 0 12"/>',
+ info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/>',
+ eye:'<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',copy:'<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/>'};
+const ico=(n,z)=>`<svg width="${z||16}" height="${z||16}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICO[n]||''}</svg>`;
+const quienEs=()=>{try{return (window.SB&&SB.user)||''}catch(e){return ''}};
+/* trazabilidad: cada cambio de estado importante queda con fecha, motivo y quién lo hizo */
+function trazar(p,accion,motivo,extra){(p.traza=p.traza||[]).push({f:HOY,t:new Date().toISOString().slice(11,16),accion,motivo:motivo||'',por:quienEs(),de:p.est,...(extra||{})})}
+function trazaCard(p){
+ let T=(p.traza||[]).slice();if(!T.length&&p.motivo&&(p.est==='Cancelada'||p.est==='Diferida'))T=[{f:'',accion:p.est==='Cancelada'?'Cancelada':'Diferida',motivo:p.motivo,por:''}];
+ if(!T.length)return '';
+ const C={'Cancelada':'var(--rojo)','Pasó de ejercicio':'#2F6FDE','Diferida':'#2F6FDE','Reactivada':'var(--verde)'};
+ return `<div class="card" style="margin-top:14px"><div class="card-h"><h2>Trazabilidad</h2><div class="n">${T.length} registro${T.length===1?'':'s'}</div></div><div class="card-b">
+  ${T.slice().reverse().map(x=>`<div style="display:flex;gap:12px;padding:8px 0;border-bottom:1px solid var(--linea-2)"><span style="width:10px;height:10px;border-radius:50%;background:${C[x.accion]||'var(--gris)'};margin-top:6px;flex-shrink:0"></span>
+   <div style="flex:1"><div><b>${esc(x.accion)}</b>${x.a?' → '+esc(x.a):''} <span class="sub2">· ${x.f?fecha(x.f):'sin fecha registrada'}${x.t?' '+x.t:''}${x.por?' · '+esc(x.por):''}</span></div>${x.motivo?`<div class="sub2" style="line-height:1.5">Motivo: ${esc(x.motivo)}</div>`:''}</div></div>`).join('')}</div></div>`}
+function accionesAct(id){
+ const p=acto(id),ne=sigEj(p.ej),cerrada=p.est==='Cancelada'||p.est==='Diferida';
+ modal(cab('¿Qué querés hacer con esta capacitación?',esc(p.nom)+' · ejercicio '+p.ej)+`<div class="mdl-b">
+  ${cerrada?`<div class="aviso" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:14px"><div style="flex:1"><b>Está ${p.est.toLowerCase()}.</b>${p.motivo?' Motivo: '+esc(p.motivo):''}</div><button class="btn s" onclick="reactivarAct('${id}')">${ico('undo',14)} Reactivar</button></div>`:''}
+  <div class="acc-grid">
+   <button type="button" class="acc-op" onclick="pasarEjForm('${id}')"><span class="acc-ic" style="background:#E4ECFB;color:#2F6FDE">${ico('cal',22)}</span><span><b>Pasar a otro ejercicio</b><small>No se hace en este ejercicio: queda como diferida (con motivo) y se crea en el ejercicio que elijas.</small></span></button>
+   <button type="button" class="acc-op" onclick="cancelarForm('${id}')"><span class="acc-ic" style="background:#FFF1E0;color:#E09B00">${ico('x',22)}</span><span><b>Cancelar</b><small>No se va a hacer. Queda en el plan como cancelada, con el motivo y la fecha registrados.</small></span></button>
+  </div>
+  <label class="check" style="margin-top:12px;font-size:12.5px"><input type="checkbox" ${p.prox?'checked':''} onchange="togProx('${id}');accionesAct('${id}')"> Dejarla marcada para que pase al ${ne} (sin cambiarle el estado)</label>
+  <div class="acc-peligro"><div style="display:flex;gap:12px;align-items:flex-start"><span class="acc-ic" style="background:#FDEAEA;color:var(--rojo)">${ico('trash',22)}</span>
+   <div style="flex:1"><b style="color:var(--rojo)">Eliminar definitivamente</b><div class="sub2" style="line-height:1.5;margin:3px 0 10px">Es distinto de cancelar: <b>se borra todo</b> (participantes, asistencia, gastos y facturas) y <b>no queda ningún registro</b>. No se puede deshacer.<br>Si solo no se va a hacer, usá <b>Cancelar</b> o <b>Pasar a otro ejercicio</b>: ahí queda la trazabilidad.</div>
+   <button type="button" class="btn d s" onclick="eliminarForm('${id}')">Eliminar…</button></div></div></div></div>`,'sm')}
+const MOT_RAP=['Cambio de prioridades del área','El proveedor no pudo dictarla','Falta de presupuesto','Ya no hace falta','Se reprogramó'];
+function motivoHtml(){return `<div class="f full"><label>Motivo <span class="sub2" style="font-weight:400">· obligatorio, queda registrado</span></label><textarea id="ac_mot" placeholder="Contá por qué" style="min-height:84px"></textarea>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">${MOT_RAP.map(m=>`<button type="button" class="cb" onclick="document.getElementById('ac_mot').value='${m}'">${m}</button>`).join('')}</div></div>`}
+function cancelarForm(id){const p=acto(id);
+ modal(cab('Cancelar la capacitación',esc(p.nom))+`<div class="mdl-b"><div class="aviso" style="margin-bottom:12px">Queda en el plan como <b>Cancelada</b> y no suma al presupuesto ni a las inscripciones. Se registra el motivo, la fecha y quién la canceló.</div>${motivoHtml()}
+  <div class="acts"><button class="btn d" onclick="cancelarAplicar('${id}')">Cancelar la capacitación</button><button class="btn n" onclick="accionesAct('${id}')">Volver</button></div></div>`,'sm')}
+function cancelarAplicar(id){const m=(document.getElementById('ac_mot')||{}).value.trim();if(!m){toast('Poné el motivo');return}
+ const p=acto(id);trazar(p,'Cancelada',m,{a:'Cancelada'});p.est='Cancelada';p.motivo=m;guardar();cerrar();refresh();toast('Cancelada · quedó registrado el motivo')}
+function pasarEjForm(id){const p=acto(id),ne=sigEj(p.ej),opts=[...new Set([ne,sigEj(ne),...ejercicios().filter(e=>e>p.ej)])].sort();
+ modal(cab('Pasar a otro ejercicio',esc(p.nom))+`<div class="mdl-b"><div class="aviso" style="margin-bottom:12px">En el ejercicio ${p.ej} queda como <b>Diferida</b> (con el motivo) y se crea en el ejercicio que elijas, con sus participantes como inscriptos.</div>
+  <div class="f"><label>¿A qué ejercicio pasa?</label><select id="ac_ej" class="fi">${opts.map(e=>`<option ${e===ne?'selected':''}>${e}</option>`).join('')}</select></div>
+  <div style="margin-top:12px">${motivoHtml()}</div>
+  <label class="check" style="margin-top:10px;font-size:12.5px"><input type="checkbox" id="ac_copia" checked> Crearla en el ejercicio elegido (con los participantes)</label>
+  <div class="acts"><button class="btn" onclick="pasarEjAplicar('${id}')">Pasar de ejercicio</button><button class="btn n" onclick="accionesAct('${id}')">Volver</button></div></div>`,'sm')}
+function pasarEjAplicar(id){const m=(document.getElementById('ac_mot')||{}).value.trim(),ne=document.getElementById('ac_ej').value,copia=document.getElementById('ac_copia').checked;if(!m){toast('Poné el motivo');return}
+ const p=acto(id);let nid='';
+ if(copia){const c=JSON.parse(JSON.stringify(p));nid=uid('X');
+  Object.assign(c,{id:nid,ej:ne,est:'Pendiente',estFijo:false,real:0,freal:'',fli:'',fest:'',motivo:'',prox:false,gastos:[],enc:[],asis:{},accion:'',traza:[],origenId:p.id,origenEj:p.ej,
+   notas:'Viene del '+p.ej+': '+m,parts:p.parts.filter(x=>x.est!=='Baja').map(x=>({...x,est:'Inscripto',motivo:'',encs:undefined}))});
+  trazar(c,'Creada por traspaso',m,{a:'Pendiente',origen:p.ej+' · '+p.nom});DB.plan.push(c)}
+ trazar(p,'Pasó de ejercicio',m,{a:'Diferida',hacia:ne,nuevoId:nid});p.est='Diferida';p.motivo=m;p.diferidaA=ne;p.prox=false;
+ guardar();cerrar();refresh();toast('Pasó al '+ne+' · quedó registrado el motivo')}
+function reactivarAct(id){const p=acto(id);trazar(p,'Reactivada','Se volvió al estado automático',{a:'Automático'});p.est='Pendiente';p.motivo='';delete p.diferidaA;p.estFijo=false;syncEstadosAct();guardar();cerrar();refresh();toast('Reactivada')}
+function eliminarForm(id){const p=acto(id),nf=DB.fact.filter(f=>f.aid===id).length,ng=(p.gastos||[]).length;
+ modal(cab('Eliminar definitivamente',esc(p.nom))+`<div class="mdl-b"><div class="aviso" style="border-color:var(--rojo);background:#FFF7F7;margin-bottom:12px"><b style="color:var(--rojo)">Esto borra todo y no deja nada.</b><ul style="margin:8px 0 0 18px;line-height:1.7"><li>${p.parts.length} participante${p.parts.length===1?'':'s'} y su asistencia</li><li>${(p.enc||[]).length} encuentro${(p.enc||[]).length===1?'':'s'}</li><li>${ng} gasto${ng===1?'':'s'} y ${nf} factura${nf===1?'':'s'}</li><li>No queda trazabilidad ni se puede deshacer</li></ul></div>
+  <div class="sub2" style="margin-bottom:12px">¿Solo no se va a hacer? Mejor <a href="#" onclick="cancelarForm('${id}');return false">cancelarla</a> o <a href="#" onclick="pasarEjForm('${id}');return false">pasarla a otro ejercicio</a>: ahí queda el motivo registrado.</div>
+  <label class="check" style="font-size:13px"><input type="checkbox" id="el_ok" onchange="document.getElementById('el_btn').disabled=!this.checked"> Entiendo que se pierde todo y no se puede deshacer</label>
+  <div class="acts"><button class="btn d" id="el_btn" disabled onclick="eliminarAplicar('${id}')">Eliminar definitivamente</button><button class="btn n" onclick="accionesAct('${id}')">Volver</button></div></div>`,'sm')}
+function eliminarAplicar(id){DB.plan=DB.plan.filter(x=>x.id!==id);DB.fact=DB.fact.filter(f=>f.aid!==id);guardar();cerrar();ir('plan');toast('Capacitación eliminada')}
+function borrarAct(id){accionesAct(id)}
 function pasarProx(id){
  const p=acto(id),ne=sigEj(p.ej);
  const c=JSON.parse(JSON.stringify(p));
@@ -1848,7 +1953,10 @@ function lideresHtml(p){
   <textarea readonly rows="2" style="width:100%;margin-top:8px;font-size:12px;padding:8px 10px;border:1px solid var(--linea);border-radius:8px" onclick="this.select()">${esc(Lm.mails.join('; '))}</textarea>
   <div class="acts" style="margin-top:8px"><button class="btn s" onclick="copiarLideres('${p.id}')">📋 Copiar los ${Lm.mails.length} mails</button><button class="btn n s" onclick="copiarLideres('${p.id}',', ')">Copiar con comas</button></div>
   <div class="sub2" style="margin-top:8px;line-height:1.7">${Lm.lideres.map(x=>`${esc(x.nombre)} <span style="opacity:.7">(${x.n} persona${x.n===1?'':'s'})</span>${x.mail?'':' <span style="color:var(--naranja)">sin mail</span>'}`).join(' · ')}</div></details>`}
-function ordPart(p,bajas){return p.parts.map((x,i)=>({x,i})).filter(o=>(o.x.est==='Baja')===bajas).sort((a,b)=>a.x.nom.localeCompare(b.x.nom,'es'))}
+/* orden por apellido: los nombres vienen como «Apellido Nombre»; si la persona está en la nómina se usa su nombre de ahí */
+const claveAp=n=>{const r=(typeof nomDe==='function'&&nomDe(n))||null;return nzn((r&&r.nombre)||n)};
+const ordAp=(L,get)=>{const g=get||(x=>x.nom);return L.slice().sort((a,b)=>claveAp(g(a)).localeCompare(claveAp(g(b)),'es'))};
+function ordPart(p,bajas){return p.parts.map((x,i)=>({x,i})).filter(o=>(o.x.est==='Baja')===bajas).sort((a,b)=>claveAp(a.x.nom).localeCompare(claveAp(b.x.nom),'es'))}
 function filtrarPart(v){const q=String(v||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();let n=0;
  document.querySelectorAll('#pcActivos .pcard').forEach(c=>{const ok=!q||c.textContent.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').includes(q);c.style.display=ok?'':'none';if(ok)n++})}
 /* al terminar una capacitación interna con asistencia: quiénes no vinieron o faltaron a la mitad o más */
@@ -2036,7 +2144,7 @@ function asisResumen(p,act){
  const rows=act.filter(x=>!E||aplica(x,E)).map(x=>{const k=x.lg||x.nom,encX=enc.filter(e=>aplica(x,e)),hechos=encX.filter(e=>(p.asis[e.id]||{})[k]).length;
   const asistio=E?!!(p.asis[E.id]||{})[k]:(hechos===encX.length&&encX.length>0),parcial=!E&&hechos>0&&hechos<encX.length;
   return{x,k,hechos,tot:encX.length,asistio,parcial}});
- const L=rows.filter(r=>!ASF.est||(ASF.est==='si'?r.asistio:ASF.est==='no'?(!r.asistio&&!r.parcial):r.parcial));
+ const L=ordAp(rows.filter(r=>!ASF.est||(ASF.est==='si'?r.asistio:ASF.est==='no'?(!r.asistio&&!r.parcial):r.parcial)),r=>r.x.nom);
  const nSi=rows.filter(r=>r.asistio).length,nNo=rows.filter(r=>!r.asistio&&!r.parcial).length,nPar=rows.filter(r=>r.parcial).length;
  return `<details class="card acc" ${ACC.quien?'open':''} ontoggle="ACC.quien=this.open"><summary class="card-h"><h2>Quién asistió</h2><div class="n">${E?'encuentro del '+fecha(E.fecha):'todos los encuentros'}</div></summary>
   <div class="card-b" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
@@ -2083,7 +2191,7 @@ function fiEnc(p){
    :!act.length?'<div class="vacio"><b>Cargá los participantes primero</b></div>'
    :`<div class="asis"><table>
     <thead><tr><th class="pn">Colaborador</th>${p.enc.map((e,i)=>`<th class="enc">${i+1}<br>${e.fecha?fecha(e.fecha):'s/f'}${e.grupo?`<br><span class="sub2">${e.grupo}</span>`:''}<br><b>${asistN(p,e,act)}/${act.filter(x=>aplica(x,e)).length}</b></th>`).join('')}<th class="r">Asistencia</th></tr></thead>
-    <tbody>${act.map(x=>{const k=x.lg||x.nom,ap=p.enc.filter(e=>aplica(x,e)),n=ap.filter(e=>(p.asis[e.id]||{})[k]).length;
+    <tbody>${ordAp(act).map(x=>{const k=x.lg||x.nom,ap=p.enc.filter(e=>aplica(x,e)),n=ap.filter(e=>(p.asis[e.id]||{})[k]).length;
      return `<tr><td class="pn"><div class="nom">${esc(x.nom)}</div><div class="sub2">${esc(x.un||'')}</div></td>
      ${p.enc.map(e=>aplica(x,e)?`<td class="mk"><input type="checkbox" ${(p.asis[e.id]||{})[k]?'checked':''} onchange="marcar('${p.id}','${e.id}','${js(k)}',this.checked)"></td>`:'<td class="mk sub2">·</td>').join('')}
      <td class="r num">${n}/${ap.length}</td></tr>`}).join('')}</tbody>
@@ -2208,19 +2316,19 @@ function fiImp(p,facs){
    ${p.repOv?`<button class="btn n" onclick="repOvQuitar('${p.id}')">Volver al reparto automático</button>`:''}</div></div></div>
 
  <div class="card"><div class="card-h"><h2>Contabilización interna · cuenta a la que imputa</h2>
-   <div class="n">${p.ctaOv?'cambiada a mano':!imp.length?'sin participantes':unaCuenta?'una sola cuenta':imp.length+' cuentas según sociedad y equipo'}</div></div>
+   <div class="n">${p.ctaOv?'cambiada a mano':!imp.length?'sin participantes':unaCuenta?'una sola cuenta':imp.length+' cuentas según sociedad y equipo'}</div>${imp.length?(GS.length>1?`<button class="btn n s" title="Copia el mensaje de todas las sociedades juntas" onclick="copiarImputacion('${p.id}')">Copiar todas</button>`:`<button class="btn g s" onclick="copiarImputacion('${p.id}')">Copiar mensaje</button>`):''}</div>
   <div class="card-b flush">
    ${!imp.length?`<div style="padding:14px 18px"><div class="sub2" style="margin-bottom:8px">Todavía no hay participantes, así que no se puede calcular la cuenta ni el reparto entre sociedades. Cargalos o elegí la cuenta a mano:</div>
      <select style="border-radius:999px;background:var(--celeste-xl);border:1px solid var(--celeste);padding:5px 28px 5px 12px;font-size:12px;font-weight:600;color:var(--celeste-d);max-width:100%;cursor:pointer" onchange="ctaOvSet('${p.id}',this.value)">
       <option value="">Elegí la cuenta…</option>${partidas().map(c=>`<option value="${c.id}">${esc(c.cta)} · ${esc(c.desc)} (${esc(ab(c.soc))})</option>`).join('')}</select></div>`
-   :unaCuenta&&!p.ctaOv?`<div style="padding:14px 18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">${ctaTag(p,imp[0])}
+   :unaCuenta&&!p.ctaOv?`<div style="padding:14px 18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">${ctaTag(p,imp[0])}${cecoSel(p,imp[0])}
      <div class="sub2">Todas las personas son de ${esc(ab(imp[0].soc))} · ${esc(imp[0].vn)}: va entera a esta cuenta · <b>${plata(imp[0].monto)}</b></div></div>
      ${imp[0].ov?`<div class="sub2" style="color:var(--naranja);padding:0 18px 12px">Cuenta cambiada · ${esc(imp[0].motivo)} · <a href="#" onclick="ctaGrQuitar('${p.id}','${js((imp[0].keys||[]).join(','))}');return false">volver a la automática</a></div>`:''}`
    :`<div class="scroll"><table>
    <thead><tr><th>Equipo</th><th>Cuenta (tocá para cambiarla)</th><th class="r">Personas</th><th class="r">%</th><th class="r">${N>1?'Total':'Monto'}</th>${thC()}</tr></thead>
-   <tbody>${GS.map((g,gi)=>`<tr style="background:var(--celeste-xl)"><td colspan="2" class="nom">${esc(ab(g.soc))}</td><td class="r num">${g.n}</td><td class="r num">${g.tot?pct1(g.n,g.tot):100}%</td><td class="r num" style="font-weight:700">${plata(g.monto)}</td>${tdM(MGc[gi])}</tr>`
+   <tbody>${GS.map((g,gi)=>`<tr style="background:var(--celeste-xl)"><td colspan="2" class="nom">${esc(ab(g.soc))} <button class="btn g s" style="margin-left:12px" title="Copia solo el mensaje de ${esc(ab(g.soc))}" onclick="copiarImputacion('${p.id}','${js(g.soc)}')">Copiar mensaje</button></td><td class="r num">${g.n}</td><td class="r num">${g.tot?pct1(g.n,g.tot):100}%</td><td class="r num" style="font-weight:700">${plata(g.monto)}</td>${tdM(MGc[gi])}</tr>`
     +g.rows.map((r,ri)=>`<tr><td class="sub2" style="padding-left:22px">${esc(r.vn)}</td>
-    <td>${ctaTag(p,r)}${r.ov?`<div class="sub2" style="color:var(--naranja);margin-top:3px">cambiada · ${esc(r.motivo)} · <a href="#" onclick="ctaGrQuitar('${p.id}','${js((r.keys||[]).join(','))}');return false">volver a la automática</a></div>`:''}</td>
+    <td>${ctaTag(p,r)}${cecoSel(p,r)}${r.ov?`<div class="sub2" style="color:var(--naranja);margin-top:3px">cambiada · ${esc(r.motivo)} · <a href="#" onclick="ctaGrQuitar('${p.id}','${js((r.keys||[]).join(','))}');return false">volver a la automática</a></div>`:''}</td>
     <td class="r num">${r.n}</td><td class="r num">${r.tot?pct1(r.n,r.tot):100}%</td><td class="r num" style="font-weight:600">${plata(r.monto)}</td>${tdM(gR(gi,ri))}</tr>`).join('')).join('')}</tbody>
    <tfoot><tr><td colspan="4">Total imputado</td><td class="r num">${plata(imp.reduce((a,r)=>a+r.monto,0))}</td>${sumCol(MGc)}</tr></tfoot></table></div>`}
    ${p.ctaOv?`<div class="aviso w" style="margin:14px 18px"><b>Imputación manual:</b> ${esc(ctaTxt(p.ctaOv.cid))}. Motivo: ${esc(p.ctaOv.motivo)} <span class="sub2">(${fecha(p.ctaOv.fecha)})</span>
@@ -2348,6 +2456,31 @@ function mensajeFacturar(p){
  if(gr.length===1)t+=`${bloque(gr[0])}\n\nMonto a facturar: ${plata(objetivo)}`;
  else t+=gr.map((g,i)=>`Imputar el ${Math.round(g.monto/tot*100)}% del total\n${bloque(g)}\nMonto: ${plata(reparto[i])}`).join('\n\n')+`\n\nTotal a facturar: ${plata(objetivo)}`;
  return{t,faltan}}
+/* centro de costo: además de la cuenta, en FASA y Amauta cada imputación puede llevar un centro de costo (opcional) */
+const cecoDe=soc=>(DB.ceco||[]).filter(c=>c.soc===soc);
+const cecoKey=r=>(r.cid||'')+'|'+(r.vn||'');
+function cecoSel(p,r){const L=cecoDe(r.soc);if(!L.length)return '';const cur=(p.ceco||{})[cecoKey(r)]||'';
+ return `<div style="margin-top:6px"><select class="fi" style="font-size:12px;padding:4px 8px;max-width:100%" title="Centro de costo (opcional)" onchange="cecoSet('${p.id}','${js(cecoKey(r))}',this.value)"><option value="">Centro de costo · opcional</option>${L.map(c=>`<option value="${esc(c.cod)}" ${c.cod===cur?'selected':''}>${esc(c.cod)} · ${esc(c.unidad)}</option>`).join('')}</select></div>`}
+function cecoSet(id,key,v){const p=acto(id);p.ceco=p.ceco||{};if(v)p.ceco[key]=v;else delete p.ceco[key];if(!Object.keys(p.ceco).length)delete p.ceco;guardar();volverFicha(id,3);toast(v?'Centro de costo guardado':'Centro de costo quitado')}
+function cecoFact(f){const p=f.ref?acto(f.ref):null;if(!p||!p.ceco)return [];const L=cecoDe(f.soc);if(!L.length)return [];
+ return [...new Set(Object.entries(p.ceco).filter(([k])=>!f.cid||k.startsWith(f.cid+'|')).map(([,v])=>v))].map(cod=>({cod,unidad:(L.find(c=>c.cod===cod)||{}).unidad||''}))}
+const cecoTxt=f=>cecoFact(f).map(c=>c.cod+(c.unidad?' - '+c.unidad:'')).join(' / ');
+/* mensaje para imputar internamente: el % de cada cuenta, la referencia y, en FASA, el Centro de Costo para completar */
+function mensajeImputacion(p,soloSoc){
+ const rows=imputar(p,p.real||p.ppto||1);if(!rows.length)return '';
+ const pf=x=>{const v=Math.round(x*10)/10;return (Number.isInteger(v)?String(v):v.toLocaleString('es-AR',{minimumFractionDigits:1,maximumFractionDigits:1}))+'%'};
+ const S={};   /* sociedad → (cuenta + centro de costo) → personas */
+ rows.forEach(r=>{const c=DB.part.find(x=>x.ej===p.ej&&x.id===r.cid)||DB.part.find(x=>x.id===r.cid)||{},soc=r.soc||c.soc||'',cc=(p.ceco||{})[cecoKey(r)]||'',g=S[soc]=S[soc]||{soc,n:0,ctas:{}},k=(r.cid||((c.cta||'')+'|'+soc))+'|'+cc,o=g.ctas[k]=g.ctas[k]||{cta:c.cta||'a definir',desc:c.desc||'',cc,n:0};o.n+=r.n;g.n+=r.n});
+ let t='Referencia: '+p.nom+(p.ej?' · ejercicio '+p.ej:'');
+ Object.values(S).filter(g=>!soloSoc||g.soc===soloSoc).sort((a,b)=>b.n-a.n).forEach(g=>{
+  const L=Object.values(g.ctas).sort((a,b)=>b.n-a.n),fi=(typeof socFisDe==='function'&&socFisDe(g.soc))||null,nombre=ab(g.soc)||g.soc,libre=/fasa|acopio|amauta/i.test(nombre+' '+g.soc),
+   ccTxt=x=>{if(!x.cc)return '';const c=cecoDe(g.soc).find(y=>y.cod===x.cc);return x.cc+(c&&c.unidad?' - '+c.unidad:'')};
+  t+='\n\n'+nombre+(fi&&fi.nom&&fi.nom!==nombre?' · '+fi.nom:'')+'\nImputar:\n'+L.map(x=>`* ${pf(x.n/(g.n||1)*100)} en la cuenta ${x.cta}${x.desc?' - '+x.desc:''}`+(libre&&L.length>1?'\n  Centro de Costo: '+ccTxt(x):'')).join('\n')+(libre&&L.length===1?'\nCentro de Costo: '+ccTxt(L[0]):'')});
+ return t}
+function copiarImputacion(id,soc){
+ const p=acto(id),t=mensajeImputacion(p,soc||'');if(!t||!/Imputar:/.test(t)){toast('Cargá participantes primero');return}
+ const fb=()=>{modal(cab('Mensaje de imputación','Seleccionalo y copialo')+`<div class="mdl-b"><textarea id="msgImp" readonly rows="10" style="width:100%;font-size:13px;padding:10px;border:1.5px solid var(--linea);border-radius:10px" onclick="this.select()">${esc(t)}</textarea></div>`,'sm');setTimeout(()=>{const x=document.getElementById('msgImp');if(x)x.select()},50)};
+ try{if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(()=>toast('Mensaje copiado'+(soc?' · '+ab(soc):'')+(/Centro de Costo/.test(t)?' · completá el Centro de Costo':'')),fb);else fb()}catch(e){fb()}}
 function copiarReparto(id){
  const p=acto(id),m=mensajeFacturar(p);if(!m.t){toast('Cargá participantes primero');return}
  const fin=()=>toast(m.faltan.length?'Copiado · faltan datos fiscales de '+m.faltan.join(', ')+' (Configuración › Valores)':'Mensaje copiado');
@@ -2377,14 +2510,16 @@ function formAlta(k){
   <div class="f full"><label>Nombre</label><input id="a_nom" placeholder="${esCoa?'Coaching de Equipo · Back Office':'Operador mercado de granos'}"></div>
   <div class="f"><label>${esInt?'Quién la dicta adentro':'Proveedor o institución'}</label>
    <input id="a_prov" list="dlProvA" value="${esInt?'Interna':''}"></div>
+  ${esCoa?`<div class="f"><label>Nombre de la coach <span class="sub2" style="font-weight:400">· opcional</span></label><input id="a_coach" placeholder="Ej: Guido Dichiara"></div>`:''}
   ${esCoa?`<div class="f"><label>Es un</label><select id="a_sub">${SUBS.map(t=>`<option>${t}</option>`).join('')}</select></div>`
    :`<div class="f"><label>Tipo</label><select id="a_tipo">${TIPOS.map(t=>`<option>${t}</option>`).join('')}</select></div>`}
-  <div class="f"><label>Foco</label><select id="a_foco">${FOCOS.map(t=>`<option>${t}</option>`).join('')}</select></div>
+  <div class="f"><label>Foco</label><select id="a_foco">${FOCOS.map(t=>`<option ${esCoa&&t==='Soft'?'selected':''}>${t}</option>`).join('')}</select></div>
   <div class="f"><label>Línea (Conocé · Crecé · Explorá)</label><select id="a_lin"><option value="">Elegí la línea…</option>${LINEAS.map(t=>`<option>${t}</option>`).join('')}</select>
    <div class="hint">Define de qué parte del presupuesto sale.</div></div>
   <div class="f"><label>Quién la carga</label><select id="a_carg"><option value="">Elegí…</option><option>Valeria</option><option>Matías</option></select></div>
   <div class="f"><label>Monto · lo que pagamos</label><input class="money" type="text" inputmode="numeric" id="a_ppto" value="0"></div>
-  <div class="f full"><label>Link de la encuesta (opcional)</label><input id="a_enc" type="url" placeholder="https://… la encuesta que se manda al terminar"></div>
+  <div class="f full"><label>Link de la encuesta (opcional)</label><input id="a_enc" type="url" placeholder="https://… la encuesta que se manda al terminar">
+   <div id="a_links" style="margin-top:10px"></div><button type="button" class="btn n s" onclick="linkAdd('a_links')">+ Agregar link</button><span class="sub2" style="margin-left:8px">opcional · material, documentos… con una referencia de qué es</span></div>
   ${esCoa?`<div class="f"><label>Fecha de inicio</label><input type="date" id="a_ini"></div>
    <div class="f"><label>Fecha de finalización</label><input type="date" id="a_fin"></div>`
    :esExt?`<div class="f"><label>Fecha de inscripción</label><input type="date" id="a_fli"></div>
@@ -2415,6 +2550,7 @@ function pintaFechas(){
   +`<button class="btn g s" onclick="FECHAS.push({fecha:'',hora:''});pintaFechas()">+ Agregar más fechas</button>`;
 }
 function crear(k){
+ if(!window._provYa&&document.getElementById('a_prov')){if(provAsk('a_prov',()=>{window._provYa=true;try{crear(k)}finally{window._provYa=false}}))return}
  const g=i=>{const e=document.getElementById(i);return e?e.value:''};
  const nom=g('a_nom').trim();
  if(!nom){toast('Poné el nombre');document.getElementById('a_nom').focus();return}
@@ -2429,8 +2565,9 @@ function crear(k){
   est:'Pendiente',presup:g('a_pre'),aprob:g('a_pre')==='Fuera'?g('a_aprob').trim():'',faprob:g('a_pre')==='Fuera'?(g('a_faprob')||HOY):'',fli:g('a_fli'),fest:'',
   freal:'',ini:g('a_ini'),fin:g('a_fin'),ppto:+g('a_ppto')||0,real:+g('a_ppto')||0,carg:g('a_carg'),motivo:'',prox:false,
   hs:'',notas:'',accion:'',chk:[],docs:[],gastos:[],parts:[],enc,asis:{},alta:HOY};
- if(k==='coa'&&g('a_ini'))p.enc=[{id:uid('E'),fecha:g('a_ini'),hora:'',dur:0,tit:nom+' · inicio',lugar:''}];
  if(g('a_enc').trim())p.encuesta=urlOk(g('a_enc'));
+ if(k==='coa'&&g('a_coach').trim())p.coach=g('a_coach').trim();
+ {const L=linksLeer('a_links');if(L.length)p.links=L}
  DB.plan.push(p);
  if(!DB.prov.some(x=>x.nom===p.prov))
   DB.prov.push({id:uid('P'),nom:p.prov,tipos:[p.tipo],mail:'',tel:'',cuit:'',contacto:'',notas:''});
@@ -2709,7 +2846,8 @@ function becasMetricas(){
  const conIni=todas.filter(b=>b.ini),enEJ=conIni.filter(b=>becaEnEJ(b,EJ));
  const sinIni=todas.filter(b=>!b.ini&&((b.rend||[]).some(e=>{const c=addMes(e.mes,-1);return c>=bn.inicio&&c<=bn.fin})||(b.est==='En curso'&&EJ===ejDeMes(HOY))));
  const meses=mesesEJ(EJ);
- if(!BI.mesPago||!meses.includes(BI.mesPago))BI.mesPago=meses.includes(hoyM)?hoyM:(hoyM<meses[0]?meses[0]:meses[meses.length-1]);
+ if(BI._auto&&BI._auto!==hoyM&&BI.mesPago===BI._auto)BI.mesPago='';   /* estaba en el mes automático y cambió el mes: pasa solo al nuevo */
+ if(!BI.mesPago||!meses.includes(BI.mesPago)){BI.mesPago=meses.includes(hoyM)?hoyM:(hoyM<meses[0]?meses[0]:meses[meses.length-1]);BI._auto=BI.mesPago===hoyM?hoyM:''}
  const m=BI.mesPago,idx=meses.indexOf(m),filas=becaFilasMes(m),hayDatos=m<=hoyM||filas.some(f=>f.x.pagada)||!!(DB.becaCargados||{})[m];
  const totMes=filas.reduce((a,f)=>a+f.x.monto,0),pagMes=filas.filter(f=>f.x.pagada).reduce((a,f)=>a+f.x.monto,0);
  const omit=todas.filter(b=>b.omit&&b.omit[m]&&b.est!=='Baja');
@@ -2915,7 +3053,7 @@ function editBeca(id){
  const estC=x=>x.nro?'<span class="chip c-act">Pagada</span>':x.pagada?'<span class="chip c-pen">Pagada · falta N°</span>':'<span class="chip c-gris">Pendiente</span>';
  modal(cab(esc(b.nom),'Seguimiento de pagos · '+esc(b.inst||'sin institución'))+`<div class="mdl-b">
   <div class="aviso">Los pagos van <b>a mes vencido</b>: la cursada de octubre se paga en noviembre. La matrícula se paga el mes de inicio.
-   Lo pagado sale del historial de rendiciones; lo que falta arranca con el valor del último mes pagado. Tildá cada cuota cuando se paga. Las becas no llevan N° de factura.
+   Lo pagado sale del historial de rendiciones; lo que falta arranca con el valor del último mes pagado. Tildá cada cuota cuando se paga. En Facturación, cada cuota de beca figura con N° de factura «Rendición de Beca».
    Podés pisar cualquier monto mes a mes.</div>
   <div class="form" style="margin-top:12px">
    <div class="f"><label>Fecha de inicio</label><input type="date" id="bk_ini" value="${b.ini||''}" onchange="saveBecaBase('${id}')"></div>
@@ -3104,7 +3242,8 @@ function idiPersonas(L){const o={};L.forEach(x=>(o[x.nom]=o[x.nom]||[]).push(x))
 function idiMeses(){return mesesEJ(EJ)}
 function idiBar(){
  const meses=idiMeses(),hoy=HOY.slice(0,7);
- if(!LG.mesA||!meses.includes(LG.mesA))LG.mesA=meses.includes(hoy)?hoy:(hoy<meses[0]?meses[0]:meses[meses.length-1]);
+ if(LG._auto&&LG._auto!==hoy&&LG.mesA===LG._auto)LG.mesA='';   /* estaba en el mes automático y cambió el mes: pasa solo al nuevo */
+ if(!LG.mesA||!meses.includes(LG.mesA)){LG.mesA=meses.includes(hoy)?hoy:(hoy<meses[0]?meses[0]:meses[meses.length-1]);LG._auto=LG.mesA===hoy?hoy:''}
  const mes=LG.mesA,idx=meses.indexOf(mes),prev=addMes(mes,-1);
  return `<div class="idi-top"><div><div class="idi-per">Período ${mesTxt(mes)}</div>
    <div class="sub2" style="font-size:12px">Facturas pagadas en ${mesTxt(mes)} · cursada de ${mesTxt(prev)}${mes===hoy?'':mes<hoy?' · mes anterior':' · mes próximo'}</div></div>
@@ -4490,7 +4629,7 @@ function todasFacturas(){
  DB.beca.filter(b=>becaConCrono(b)&&b.est!=='Cancelada').forEach(b=>{const c=ctaGen(b.soc)||{};
   becaCronograma(b).filter(x=>x.pagada&&x.cursada>=bn.inicio&&x.cursada<=bn.fin).forEach(x=>R.push({id:'bec#'+b.id+'#'+x.key,beca:true,ej:EJ,
    act:'Beca · '+b.nom+' · Mes '+mesCap(x.pago)+(x.n?' · cuota '+x.n+'/'+x.N:''),prov:b.inst||'',soc:b.soc,cid:c.id,cta:c.cta||'',monto:x.monto,
-   nro:x.ref||'',fcarga:x.fecha,mes:x.pago,tipo:'Beca',est:'Pagada',ref:''}))});
+   nro:((b.pagos&&b.pagos[x.key]&&b.pagos[x.key].nro)||'Rendición de Beca'),pedido:x.ref||'',fcarga:x.fecha,mes:x.pago,tipo:'Beca',est:'Pagada',ref:''}))});
  /* mes de pago: el que se carga a mano; si no, el período de idiomas/becas, o el de la fecha de pago (o de factura si ya tiene N°) */
  R.forEach(f=>{f.mpago=f.mpago||(f.idi||f.beca?(f.mes||''):(((f.fpago||'')||(f.nro?(f.fcarga||''):'')).slice(0,7)));f.mesf=f.mpago});
  return R;
@@ -4532,21 +4671,19 @@ V.fact=()=>{
  </div>
 
  <div class="card"><div class="card-h"><h2>Comprobantes</h2><div class="n">${L.length} · ${plata(L.reduce((a,f)=>a+f.monto,0))}</div></div>
-  <div class="card-b flush"><div class="scroll"><table>
-  <thead><tr><th>Concepto</th><th>Tipo</th><th>Proveedor</th><th>Sociedad</th><th>Cuenta</th><th class="r">Monto</th>
-   <th>N° de factura</th><th>Fecha de factura</th><th>Mes de pago</th><th>Estado</th></tr></thead>
+  <div class="card-b flush"><div class="scroll"><table class="fit">
+  <thead><tr><th>Concepto</th><th>Proveedor</th><th>Sociedad · cuenta</th><th class="r">Monto</th><th>N° de factura</th><th>Fecha de factura</th><th>Mes de pago</th><th>Estado</th></tr></thead>
   <tbody>${L.length?L.map(f=>`<tr>
-   <td><div class="nom">${esc(f.act)}</div>
-    ${f.ref?`<div class="sub2"><a href="#" onclick="ir('act','${f.ref}');return false">ver ficha →</a></div>`:''}</td>
-   <td><span class="chip c-gris">${f.tipo}</span></td>
-   <td class="sub2">${esc(f.prov||'—')}</td><td>${esc(ab(f.soc))}</td>
-   <td class="num" style="font-size:11.5px">${esc(f.cta||'—')}</td>
-   <td class="r num" style="font-weight:600">${f.tipo==='Capacitación'?`<input class="fi num money" type="text" inputmode="numeric" style="width:125px;text-align:right" value="${f.monto}" title="Cargá o corregí el monto de la factura" onchange="setFact('${f.id}','monto',this.value)">`:plata(f.monto)}</td>
-   <td><input class="fi num" style="width:140px" value="${esc(f.nro||'')}" placeholder="0001-00000000" onchange="setAnyFact('${f.id}','nro',this.value)"></td>
-   <td><input class="fi" type="date" value="${f.fcarga||''}" onchange="setAnyFact('${f.id}','fcarga',this.value)"></td>
-   <td>${f.beca?`<span class="sub2">${f.mpago?mesTxt(f.mpago):'—'}</span>`:`<input class="fi" type="month" value="${f.mpago||''}" title="Mes en que se paga" onchange="setAnyFact('${f.id}','mpago',this.value)">`}</td>
+   <td><div class="nom">${esc(f.act)}</div>${f.pedido?`<div class="sub2">Pedido: ${esc(f.pedido)}</div>`:''}
+    <div class="sub2" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:3px"><span class="chip c-gris">${f.tipo}</span>${f.ref?`<a href="#" onclick="ir('act','${f.ref}');return false">ver ficha →</a>`:''}</div></td>
+   <td class="sub2">${esc(f.prov||'—')}</td>
+   <td><div>${esc(ab(f.soc))}</div><div class="sub2 num" style="font-size:11px">${esc(f.cta||'—')}</div>${cecoDe(f.soc).length?(C=>C.length?`<div class="sub2" style="font-size:11px">CC ${C.map(c=>esc(c.cod+(c.unidad?' · '+c.unidad:''))).join(' / ')}</div>`:`<div class="sub2" style="font-size:11px;color:var(--naranja)">CC sin elegir${f.ref?` · <a href="#" onclick="ir('act','${f.ref}');return false">elegir</a>`:''}</div>`)(cecoFact(f)):''}</td>
+   <td class="r num" style="font-weight:600">${f.tipo==='Capacitación'?`<input class="fi num money" type="text" inputmode="numeric" style="width:112px;text-align:right" value="${f.monto}" title="Cargá o corregí el monto de la factura" onchange="setFact('${f.id}','monto',this.value)">`:plata(f.monto)}</td>
+   <td><input class="fi num" style="width:124px" value="${esc(f.nro||'')}" placeholder="0001-00000000" onchange="setAnyFact('${f.id}','nro',this.value)"></td>
+   <td><input class="fi" type="date" style="width:132px" value="${f.fcarga||''}" onchange="setAnyFact('${f.id}','fcarga',this.value)"></td>
+   <td>${f.beca?`<span class="sub2">${f.mpago?mesTxt(f.mpago):'—'}</span>`:`<input class="fi" type="month" style="width:124px" value="${f.mpago||''}" title="Mes en que se paga" onchange="setAnyFact('${f.id}','mpago',this.value)">`}</td>
    <td>${chip(f.est)}</td></tr>`).join('')
-  :'<tr><td colspan="10"><div class="vacio"><b>Sin comprobantes</b>Se cargan desde la ficha de cada capacitación, desde Becas o Idiomas, o con "+ Factura suelta".</div></td></tr>'}</tbody>
+  :'<tr><td colspan="8"><div class="vacio"><b>Sin comprobantes</b>Se cargan desde la ficha de cada capacitación, desde Becas o Idiomas, o con "+ Factura suelta".</div></td></tr>'}</tbody>
  </table></div></div></div>
 `;
 };
@@ -5563,7 +5700,9 @@ function statsProv(n){
 }
 /* un proveedor está activo si tiene una capacitación en curso o con fecha de inicio (todavía no terminada), alumnos de idiomas o una beca en curso */
 function provEstado(nom){
- const hoyEj=ejDeMes(HOY),a=DB.plan.find(p=>p.prov===nom&&!['Finalizada','Cancelada','Diferida'].includes(p.est)&&(p.est==='En curso'||(p.ej===hoyEj&&actFechas(p).ini)));
+ const nz=t=>String(t||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim(),nn=nz(nom);
+ /* activo: tiene algo en curso, o con fecha de inicio que todavía no terminó (de cualquier ejercicio); inactivo: todo finalizado, cancelado o sin fechas */
+ const a=DB.plan.find(p=>nz(p.prov)===nn&&!['Finalizada','Cancelada','Diferida'].includes(p.est)&&(p.est==='En curso'||(()=>{const f=actFechas(p);return !!f.ini&&!(f.fin&&f.fin<HOY)})()));
  if(a)return{act:true,why:(a.est==='En curso'?'en curso: ':'con fecha de inicio: ')+a.nom};
  const n=DB.idi.filter(x=>x.profe===nom&&x.est==='Activa').length;if(n)return{act:true,why:n+' alumno'+(n===1?'':'s')+' de idiomas'};
  const b=DB.beca.find(b=>b.inst===nom&&b.veredicto==='Aprobada'&&b.est==='En curso');if(b)return{act:true,why:'beca en curso: '+b.nom};
@@ -5584,6 +5723,7 @@ V.prov=()=>{
   ${met('Proveedores',DB.prov.length,`${tipos.length} tipos`,'met-tot')}
   ${met('Activos ahora',DB.prov.filter(p=>provEstado(p.nom).act).length,'con algo en curso o con fecha de inicio','met-dis ok')}
  </div>
+ ${provDupCard()}
  <div class="filtros">
   <div class="busca"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#A9BFC5" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
    <input class="fi" id="pvq" placeholder="Buscar proveedor…" value="${esc(PV.q)}"></div>
@@ -5593,13 +5733,14 @@ V.prov=()=>{
   <button class="btn n" onclick="PV={q:'',tipo:'',act:'',cap:''};refresh()">Limpiar</button>
  </div>
  <div class="card"><div class="card-b flush"><div class="scroll"><table>
-  <thead><tr><th>Proveedor</th><th>Tipos</th><th>Estado</th><th></th></tr></thead>
+  <thead><tr><th>Proveedor</th><th>Tipos</th><th>Mail y teléfono</th><th>Estado</th><th></th></tr></thead>
   <tbody>${L.length?L.map(p=>`<tr class="clic" onclick="verProv('${js(p.nom)}')">
    <td class="nom">${esc(p.nom)}${PV.cap?`<div class="sub2">${(p.acts||[]).filter(a=>(a.nom||'').toLowerCase().includes(PV.cap.toLowerCase())).slice(0,3).map(a=>esc(a.nom+' · '+a.ej)).join(' · ')}</div>`:''}</td>
    <td><div class="chips">${(p.tipos||[]).slice(0,3).map(t=>`<span class="chip c-gris">${esc(t)}</span>`).join('')}</div></td>
+   <td style="font-size:12px;line-height:1.5">${provGenerico(p.nom)?'<span class="sub2">—</span>':((m=>m.length?`<div>${esc(m[0])}${m.length>1?' <b title="'+esc(m.slice(1).join('; '))+'">+'+(m.length-1)+'</b>':''}</div>`:'<span class="chip c-pen">Falta mail</span>')(mailsProv(p)))}${p.tel&&!provGenerico(p.nom)?`<div class="sub2">${esc(p.tel)}</div>`:''}</td>
    <td>${p.pe.act?`<span class="chip c-act" title="${esc(p.pe.why)}">Activo</span>`:`<span class="chip c-gris" title="${esc(p.pe.why)}">Inactivo</span>`}<div class="sub2" style="font-size:10.5px;max-width:170px">${esc(p.pe.why)}</div></td>
    <td class="r"><button class="btn n s" onclick="event.stopPropagation();delProv('${js(p.nom)}')">✕</button></td></tr>`).join('')
-  :'<tr><td colspan="4"><div class="vacio"><b>Ningún proveedor coincide</b></div></td></tr>'}</tbody>
+  :'<tr><td colspan="5"><div class="vacio"><b>Ningún proveedor coincide</b></div></td></tr>'}</tbody>
  </table></div></div></div>`;
 };
 V.prov.after=()=>{const q=$('#pvq');if(!q)return;
@@ -5624,6 +5765,9 @@ function verProv(nombre){
     ${((p.mails&&p.mails.length)?p.mails:(p.mail?[p.mail]:[''])).map(m=>`<div style="display:flex;gap:6px"><input class="v_mail" style="flex:1" value="${esc(m)}" placeholder="nombre@empresa.com"><button class="btn n s" type="button" title="Quitar este mail" onclick="this.parentElement.remove()">✕</button></div>`).join('')}</div>
     <button class="btn n s" type="button" style="margin-top:6px;align-self:flex-start" onclick="mailProvMas()">+ Agregar otro mail</button></div>
    <div class="f"><label>CUIL / CUIT</label><input id="v_cuit" value="${esc(p.cuit||'')}"></div>
+   <div class="f full"><label>Portal <span class="sub2" style="font-weight:400">· opcional (link, usuario y contraseña)</span></label>
+    ${accAviso()}<div id="v_portales">${accDe(nombre).map(a=>portalBlock(a)).join('')}</div>
+    <button class="btn n s" type="button" ${accOk()?'':'disabled'} onclick="portalAdd()">+ Agregar portal</button></div>
    <div class="f full"><label>Notas</label><textarea id="v_notas">${esc(p.notas||'')}</textarea></div></div>
   <div class="acts" style="margin-bottom:12px"><button class="btn" onclick="saveProv(${i})">Guardar</button></div>
   ${s.acts.length?`<div style="font-size:12px;font-weight:600;margin-bottom:6px">Capacitaciones</div>
@@ -5642,10 +5786,131 @@ function mailProvMas(){const d=document.createElement('div');d.style.cssText='di
 function saveProv(i){const p=DB.prov[i],g=k=>document.getElementById(k).value;
  const mails=[...document.querySelectorAll('.v_mail')].map(i=>i.value.trim()).filter(Boolean);
  Object.assign(p,{contacto:g('v_cont'),mails,mail:mails[0]||'',tel:g('v_tel'),cuit:g('v_cuit'),notas:g('v_notas')});
+ if(document.getElementById('v_portales')&&accOk()){const B=portalesLeer(p.nom);DB.acc=(DB.acc||[]).filter(a=>!(a.prov&&provPn(a.prov)===provPn(p.nom))).concat(B)}
  guardar();cerrar();refresh();toast('Proveedor actualizado')}
 function delProv(nom){
  confirmar(`Vas a eliminar el proveedor <b>${esc(nom)}</b> de la lista. Las capacitaciones que lo mencionan no se modifican.`,
   `()=>{DB.prov=DB.prov.filter(x=>x.nom!=='${js(nom)}');guardar();refresh();toast('Proveedor eliminado')}`)}
+/* ═════ Proveedores: evitar duplicados con otro nombre ═════ */
+const provPn=t=>String(t||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+const PROV_STOP=new Set(['de','del','la','las','los','el','y','e','sa','s','a','srl','sau','sas','ltda','inc','the']);
+const provTok=t=>provPn(t).split(' ').filter(w=>w&&!PROV_STOP.has(w));
+const provGenerico=n=>/^(a definir|interna|interno|beca)$/i.test(String(n||'').trim());
+function provLev(a,b){const m=a.length,n=b.length;if(!m||!n)return 0;let p=Array.from({length:n+1},(_,i)=>i);for(let i=1;i<=m;i++){const c=[i];for(let j=1;j<=n;j++)c[j]=Math.min(p[j]+1,c[j-1]+1,p[j-1]+(a[i-1]===b[j-1]?0:1));p=c}return 1-p[n]/Math.max(m,n)}
+function provSimil(a,b){   /* ¿se parecen tanto como para ser el mismo proveedor? */
+ const A=provTok(a),B=provTok(b);if(!A.length||!B.length)return false;
+ const sa=[...A].sort().join(' '),sb=[...B].sort().join(' ');if(sa===sb)return true;
+ const[C,L]=A.length<=B.length?[A,B]:[B,A];
+ if(C.length>=2&&C.every(t=>L.some(u=>u===t||provLev(t,u)>=.8)))return true;                               /* "Bolsa Comercio" dentro de "Bolsa de Comercio de Rosario" */
+ if(A.length===1&&B.length===1)return provLev(A[0],B[0])>=.8;
+ if(A.length===B.length&&A.every(t=>B.some(u=>provLev(t,u)>=.8))&&B.every(u=>A.some(t=>provLev(t,u)>=.8)))return true;   /* error de tipeo */
+ const ini=x=>x.map(w=>w[0]).join('');const ac=(L.length>=2?ini(L):''),sing=C.length===1?C[0]:'';   /* BCR = Bolsa de Comercio de Rosario */
+ return !!(sing&&sing.length>=3&&ac===sing)}
+function provParecidos(v,excluir){const pv=provPn(v);return DB.prov.filter(x=>!provGenerico(x.nom)&&provPn(x.nom)!==pv&&x.nom!==excluir&&provSimil(v,x.nom))}
+const provCuenta=n=>DB.plan.filter(p=>p.prov===n).length+DB.idi.filter(x=>x.profe===n).length+DB.beca.filter(b=>b.inst===n).length;
+/* antes de guardar: si lo escrito se parece a un proveedor que ya existe, se pregunta ahí mismo (sin perder lo que se estaba cargando) */
+function provAsk(inputId,done,actual){
+ const inp=document.getElementById(inputId);if(!inp)return false;const v=inp.value.trim();
+ if(!v||provGenerico(v))return false;
+ const ex=DB.prov.find(x=>provPn(x.nom)===provPn(v));if(ex){inp.value=ex.nom;return false}   /* mismo nombre con otras mayúsculas o tildes: se usa el ya cargado */
+ if(actual&&provPn(actual)===provPn(v))return false;
+ if(window._provOk===provPn(v))return false;
+ const c=provParecidos(v);if(!c.length)return false;
+ let box=document.getElementById(inputId+'_ask');if(!box){box=document.createElement('div');box.id=inputId+'_ask';(inp.closest('.f')||inp.parentElement).insertAdjacentElement('afterend',box)}
+ window._provDone=done;box.className='aviso w';box.style.cssText='margin-top:8px;grid-column:1 / -1';
+ box.innerHTML=`<b>¿Es este proveedor?</b> Escribiste «${esc(v)}» y ya tenés cargado:<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${c.slice(0,4).map(x=>`<button type="button" class="btn s" onclick="provElegir('${inputId}','${js(x.nom)}')">Sí, es «${esc(x.nom)}» <span style="opacity:.75;font-weight:400">· ${provCuenta(x.nom)} cap.</span></button>`).join('')}<button type="button" class="btn n s" onclick="provOtro('${inputId}')">No, es otro proveedor</button></div>`;
+ box.scrollIntoView({block:'center',behavior:'smooth'});return true}   /* true = hay una pregunta abierta: quien llama espera */
+function provElegir(inputId,nom){const i=document.getElementById(inputId);if(i)i.value=nom;const b=document.getElementById(inputId+'_ask');if(b)b.remove();const f=window._provDone;window._provDone=null;f&&f()}
+function provOtro(inputId){const i=document.getElementById(inputId);window._provOk=provPn(i?i.value:'');const b=document.getElementById(inputId+'_ask');if(b)b.remove();const f=window._provDone;window._provDone=null;f&&f()}
+/* unir dos proveedores que son el mismo */
+function provDuplicados(){const L=DB.prov.filter(x=>!provGenerico(x.nom)),ign=new Set((DB.cfg.provNoDup||[])),out=[];
+ for(let i=0;i<L.length;i++)for(let j=i+1;j<L.length;j++){if(provSimil(L[i].nom,L[j].nom)&&!ign.has([L[i].nom,L[j].nom].sort().join('|')))out.push([L[i],L[j]])}return out}
+function provUnirForm(dest,orig){const d=DB.prov.find(x=>x.nom===dest),o=DB.prov.find(x=>x.nom===orig);if(!d||!o)return;
+ const n=provCuenta(orig),nf=DB.fact.filter(f=>f.prov===orig).length+DB.fidi.filter(f=>f.profe===orig).length;
+ modal(cab('Unir proveedores','')+`<div class="mdl-b"><div class="aviso" style="margin-bottom:12px">Todo lo de <b>${esc(orig)}</b> pasa a <b>${esc(dest)}</b>: <b>${n}</b> capacitación${n===1?'':'es'} / alumnos / becas y <b>${nf}</b> factura${nf===1?'':'s'}. Los datos de contacto se juntan, y después «${esc(orig)}» se borra de la lista.</div>
+  <div class="acts"><button class="btn" onclick="provUnir('${js(dest)}','${js(orig)}')">Unir en «${esc(dest)}»</button><button class="btn n" onclick="cerrar()">Cancelar</button></div></div>`,'sm')}
+function provUnir(dest,orig){const d=DB.prov.find(x=>x.nom===dest),o=DB.prov.find(x=>x.nom===orig);if(!d||!o)return;
+ DB.plan.forEach(p=>{if(p.prov===orig)p.prov=dest});DB.fact.forEach(f=>{if(f.prov===orig)f.prov=dest});DB.fidi.forEach(f=>{if(f.profe===orig)f.profe=dest});DB.idi.forEach(x=>{if(x.profe===orig)x.profe=dest});DB.beca.forEach(b=>{if(b.inst===orig)b.inst=dest});
+ (DB.comp||[]).forEach(c=>{if(c.prov===orig)c.prov=dest});
+ d.tipos=[...new Set([...(d.tipos||[]),...(o.tipos||[])])];['tel','cuit','contacto'].forEach(k=>{if(!d[k]&&o[k])d[k]=o[k]});
+ const ms=[...new Set([d.mail,...(d.mails||[]),o.mail,...(o.mails||[])].map(x=>String(x||'').trim()).filter(Boolean))];if(ms.length){d.mail=ms[0];d.mails=ms}
+ if(o.notas)d.notas=(d.notas?d.notas+'\n':'')+o.notas;
+ DB.prov=DB.prov.filter(x=>x!==o);guardar();cerrar();refresh();toast('Unidos: «'+orig+'» ahora es «'+dest+'»')}
+function provNoDup(a,b){DB.cfg.provNoDup=DB.cfg.provNoDup||[];DB.cfg.provNoDup.push([a,b].sort().join('|'));guardar();refresh()}
+function provDupCard(){const D=provDuplicados();if(!D.length)return '';
+ return `<div class="card" style="border-color:var(--naranja);margin-bottom:16px"><div class="card-h"><h2>Posibles duplicados (${D.length})</h2><div class="n">nombres parecidos: ¿es el mismo proveedor?</div></div><div class="card-b flush"><div class="scroll"><table><thead><tr><th>Un nombre</th><th>Otro nombre</th><th></th></tr></thead><tbody>
+  ${D.map(([a,b])=>`<tr><td class="nom">${esc(a.nom)}<div class="sub2">${provCuenta(a.nom)} cap. · ${esc((a.tipos||[]).join(', '))}</div></td><td class="nom">${esc(b.nom)}<div class="sub2">${provCuenta(b.nom)} cap. · ${esc((b.tipos||[]).join(', '))}</div></td>
+   <td style="white-space:nowrap"><button class="btn s" onclick="provUnirForm('${js(a.nom)}','${js(b.nom)}')">Unir en «${esc(a.nom.length>22?a.nom.slice(0,21)+'…':a.nom)}»</button> <button class="btn s" onclick="provUnirForm('${js(b.nom)}','${js(a.nom)}')">Unir en «${esc(b.nom.length>22?b.nom.slice(0,21)+'…':b.nom)}»</button> <button class="btn n s" onclick="provNoDup('${js(a.nom)}','${js(b.nom)}')">No son el mismo</button></td></tr>`).join('')}</tbody></table></div></div></div>`}
+/* ═════ Proveedores: datos del Excel completado (contacto, mails, teléfono, CUIT y notas) ═════
+   Solo se completa lo que el Excel trae; lo que está en blanco no se toca ni se inventa. */
+const mailsProv=p=>(p.mails&&p.mails.length)?p.mails:(p.mail?[p.mail]:[]);
+function migrarProvExcel(){
+ const R=[["A3", "", [], "", "30-52569841-2", ""], ["academiaset", "", [], "", "", ""], ["Andrea Coronel", "Coronel Andrea Daniela", ["andreacoronel@hotmail.com"], "", "27-27675721-6", ""], ["Andrés Dal Lago", "Andres del lago", ["andres.dallago@gmail.com"], "54 9 3416 75-7268", "20-25007462-0", ""], ["Angie Fernandez", "Angeles Fernandez", ["angiefernandez.liderazgo@gmail.com"], "+54 9 11 3180-8233", "", ""], ["Austral", "", ["pfiore@austral.edu.ar", "artolazabal@austral.edu.ar"], "", "30-59495091-3", "Mails: PFiore@austral.edu.ar (pasantias) · Artolazabal@austral.edu.ar (principal)"], ["BCRA", "", [], "", "", ""], ["Bench Club", "Romina Diel", ["administracion@negociosenred.com.ar", "notifications@negociosenred.odoo.com"], "+54 9 341 642-1964", "30-71648197-9", "Bench Club / Negocios en Red · Web: bench.club"], ["Bolsa de Comercio de Buenos Aires", "Natalia Macarena Becerra · Inscripciones y facturación", ["nbecerra@labolsa.com.ar", "fundacion@labolsa.com.ar"], "+54 11 4316-7023", "30-54053463-9", "Factura: Fundación Bolsa de Comercio de Buenos Aires · fundacion@ = mail institucional"], ["Bolsa de Comercio de Rosario", "", [], "+54 341 525-8300 / +54 341 410-2600", "30-52641408-6", "Capacitación gestionada por BCR · Dirección: Córdoba 1402, Rosario"], ["Bolsa de Comercio Rosario", "", ["dflores@bcr.com.ar"], "", "30-52641408-6", ""], ["CIRAEventos", "", [], "", "", ""], ["Claudia Tubino", "Tubino Claudia Estela", ["profeclau975@gmail.com"], "+54 9 3413 54-1758", "27-17462455-6", ""], ["Cluster", "", [], "", "", ""], ["Coderhouse", "", [], "", "", ""], ["Comunidad HR", "", [], "", "", ""], ["Digital House", "", [], "", "30-71504342-0", ""], ["Educación IT", "", [], "", "", "Recomendado por Valeria Marinovich para Power BI · sin mail directo todavía"], ["ERREPAR", "División Capacitación", ["division.capacitacion@errepar.com", "novemail@errepar.com"], "+54 11 4370-2002", "", "novemail@ = boletines institucionales · CUIT a definir: ERREPAR SA 30-58262294-5 o ERREPAR Sistemas SA 30-58231144-3"], ["Fertilizar", "", ["estudioiannialvarezfacturas@gmail.com"], "", "30-70907594-9", ""], ["Forum", "", [], "", "", ""], ["Francisco Del Campo", "Francisco Del Campo", ["frandelcampo@gmail.com"], "+54 9 11 3163-1845", "20-30557825-9", ""], ["Fundación Libertad", "", ["nmarovich@edn.org.ar", "agro@edn.org.ar"], "", "30-63947553-7", "agro@ = Centro de Gestión Agropecuaria · Dirección: Mitre 170, Rosario"], ["Gabriela Coronel", "Coronel Gabriela Fernanda", ["coronel.gabyf@gmail.com"], "+54 9 3416 82-8661", "27-20598700-8", ""], ["Grupo CRESUD", "Lucila Noel García · Administración; Florencia Maldonado Melle", ["lgarcia@cresud.com.ar", "fmelle@cresud.com.ar"], "", "30-50930070-0", ""], ["IAE", "", ["dghezzi@iae.edu.ar"], "+54 9 11 4419-2276", "30-59495091-3", "Razón social: Asociación Civil de Estudios Superiores (ACES) · Mails: DGhezzi@iae.edu.ar (pagos)"], ["Liga de compradores", "", [], "", "", ""], ["Maite Echevarría", "Echavarria Maite Ariadna", ["echavarriamaite@gmail.com"], "+54 9 3415 31-4706", "27-36508001-7", ""], ["Manuel Libenson", "Manuel Libenson", ["manuel.libenson@gmail.com"], "54 9 11 3668-4834", "20-27226905-0", ""], ["Marca potencial", "", ["florencia.scarpelli@marcapotencial.com.ar"], "", "", ""], ["Martín Descalzo", "Martín Descalzo", ["mdescalzo@teamagro.com.ar"], "+54 9 3413 06-3146", "20-22177503-2", "Team agro"], ["Microsoft Learning", "", [], "", "", ""], ["Modo Laboral", "Luciana Causereano", ["modolaboral@gmail.com"], "+54 9 11 5595-4427", "27-25687479-8", "Factura a nombre de: Causerano Luciana"], ["Nieves aleman", "Nieves Aleman", ["nievesaleman@talentlab.com.ar", "juampilopezfaour@talentlab.com.ar"], "+54 9 11 5389-7280", "33-71748047-9", ""], ["Nulinga", "Eugenia Molina", ["eugenia.molina@nulinga.com"], "+54 1173576893", "30-71659300-9", ""], ["O'Shea", "O Shea Nora Patricia", [], "", "27-12480749-8", ""], ["Proceso Creativo", "Ariadna Labbate", ["ariadna.labbate@gmail.com"], "+54 9 11 4186-0907", "27-21141860-0", "Razón social: PROCESOS CREATIVOS DE DESARROLLO · Domicilio: Jujuy 447, Capilla del Monte, Córdoba"], ["Puntual", "Carlina Municoy", ["carlina.municoy@puntual.com.ar"], "+54 9 11 5718-2284", "", ""], ["Ray Dalton", "Ray Dalton", ["raydalton.iei@gmail.com", "raydalton@institutodeestudiosintegrales.com"], "+54 9 11 44056787", "20-93462030-6", "Director Instituto de Estudios Integrales y Ray Dalton Coaching & Consulting"], ["Sergio Onocko", "Sergio Onocko", ["socapacitaciones@gmail.com"], "+54 9 3412 14-2100", "23-38123206-9", "Factura a nombre de: Onocko Esteban"], ["Soledad Moreno", "Soledad Moreno", ["soledadmoreno1@gmail.com"], "+54 9 11 4035-9601", "27-22447753-3", "Nombre completo: María Soledad Moreno · Domicilio: Loreto Virrey 1563, CABA"], ["Syngenta", "", [], "", "", ""], ["UBA", "", [], "", "30-54666656-1", ""], ["UCEMA", "Cynthia Truccolo · Créditos y Cobranzas", ["v-glsanchez@ucema.edu.ar", "empresas@ucema.edu.ar", "cobranzasejecutivos@ucema.edu.ar", "v-aschmidt@ucema.edu.ar"], "+54 9 11 2276-1815", "30-65919264-7", "empresas@ / tel. principal: Cynthia Truccolo · Créditos y Cobranzas · cobranzasejecutivos@: Facturación y Cobranzas, tel. +54 11 6314-3000 / +54 11 3640-0763"], ["UDESA", "María Pía Scotto", ["mpscotto@udesa.edu.ar", "srosenmary@udesa.edu.ar", "cobranzas@udesa.edu.ar", "comprobantes@udesa.edu.ar", "facturacion@udesa.edu.ar", "educacionejecutiva@udesa.edu.ar", "nreyna@udesa.edu.ar", "sgarat@udesa.edu.ar"], "+54 9 11 7078-5155", "33-71113460-9", "Razón social: Fundación Universidad de San Andrés (FUDESA) · Mail 2 comercial, Mail 3 cobranzas · Tel. general +54 11 7078-0505 · Tesorería +54 11 7078-0400 int. 4020 · Nadia Reyna (nreyna@) +54 11 7078-5122 · Sofía Garat (sgarat@) +54 11 7078-5111"], ["Universidad de Salamanca", "Agustina Gargano", ["administrationinfo@doinglobal.com"], "+54 9 351 754-6132", "", ""], ["UNMP", "", [], "", "", ""], ["UNR", "", ["empleo@fcecon.unr.edu.ar"], "", "", "Mails: empleo@fcecon.unr.edu.ar - Pasantias"], ["UTDT", "Admisiones MBA", ["admisionesmba@utdt.edu"], "+54 11 5169-7357 / 7359", "30-64659411-8", ""], ["UTN", "", ["lucas.tomalino@centrodeelearning.com"], "", "30-54667116-6", ""], ["Williams", "Tomás Williams", ["twilliams@williamsagroservicios.com.ar"], "+54 9 11 6978-1322", "30-70738607-6", "Razón social en maestro: Williams Entregas S.A."], ["Yael Romano", "Yael Romano", ["yaelromano.hr@gmail.com"], "+54 9 11 5997-9910", "27-30037683-0", "Web: www.yaelromano.com"]],info={act:0,mails:0,tel:0,cuit:0,cont:0,notas:0,noEnc:[]};
+ R.forEach(([nom,cont,ms,tel,cuit,notas])=>{const p=DB.prov.find(x=>provPn(x.nom)===provPn(nom));if(!p){info.noEnc.push(nom);return}let ch=false;
+  if(cont&&p.contacto!==cont){p.contacto=cont;info.cont++;ch=true}
+  if(ms.length&&JSON.stringify(mailsProv(p))!==JSON.stringify(ms)){p.mails=ms.slice();p.mail=ms[0];info.mails++;ch=true}
+  if(tel&&p.tel!==tel){p.tel=tel;info.tel++;ch=true}
+  if(cuit&&p.cuit!==cuit){p.cuit=cuit;info.cuit++;ch=true}
+  if(notas&&p.notas!==notas){p.notas=notas;info.notas++;ch=true}
+  if(ch)info.act++});
+ window._provXl=info;return info}
+/* ═════ ACCESOS: portales de proveedores y contraseñas del equipo (tabla accesos en Supabase) ═════ */
+const accOk=()=>true;   /* siempre se pueden cargar accesos: con o sin la tabla nueva en la base */
+const accTablaFalta=()=>typeof SB!=='undefined'&&SB&&SB.cli&&SB.accOk===false;
+const accAviso=()=>accTablaFalta()?`<div class="aviso" style="margin-bottom:14px"><b>Los accesos se guardan en la base general.</b> Cuando corras una vez el script <b>01_esquema_supabase.sql</b> en Supabase, pasan solos a su tabla propia (recomendado: permite darle permisos más estrictos). Mientras tanto se puede cargar y usar todo normal.</div>`:'';
+const accDe=nom=>(DB.acc||[]).filter(a=>a.prov&&provPn(a.prov)===provPn(nom));
+function accCuentaFila(c,conEt){c=c||{};return `<div class="p_cu" style="display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap">${conEt?`<input class="fi p_et" placeholder="Etiqueta (opcional)" value="${esc(c.et||'')}" style="width:130px">`:''}<input class="fi p_u" placeholder="Usuario" value="${esc(c.u||'')}" style="flex:1;min-width:140px"><div style="display:flex;gap:4px;flex:1;min-width:150px"><input class="fi p_c" type="password" autocomplete="new-password" placeholder="Contraseña" value="${esc(c.c||'')}" style="flex:1;min-width:0"><button type="button" class="ib" title="Mostrar u ocultar" onclick="const i=this.previousElementSibling;i.type=i.type==='password'?'text':'password'">${ico('eye',15)}</button></div><button type="button" class="ib" title="Quitar" onclick="this.closest('.p_cu').remove()">✕</button></div>`}
+function portalBlock(a){a=a||{};const cu=(a.cuentas&&a.cuentas.length)?a.cuentas:[{}];
+ return `<div class="portal" data-id="${esc(a.id||'')}" style="border:1px solid var(--linea);border-radius:12px;padding:12px;margin-bottom:10px;background:var(--niebla)">
+  <div style="display:flex;gap:8px;margin-bottom:8px"><input class="fi p_nom" placeholder="Nombre del portal (opcional)" value="${esc(a.nom||'')}" style="flex:1"><button type="button" class="ib" title="Quitar este portal" onclick="this.closest('.portal').remove()">✕</button></div>
+  <input class="fi p_link" type="url" placeholder="Link del portal  https://…" value="${esc(a.link||'')}" style="width:100%;margin-bottom:8px">
+  <div class="p_cuentas">${cu.map(c=>accCuentaFila(c,false)).join('')}</div>
+  <button type="button" class="btn n s" onclick="this.previousElementSibling.insertAdjacentHTML('beforeend',accCuentaFila({},false))">+ Agregar otro usuario</button></div>`}
+function portalAdd(){const c=document.getElementById('v_portales');if(c)c.insertAdjacentHTML('beforeend',portalBlock({}))}
+function portalesLeer(nom){return [...document.querySelectorAll('#v_portales .portal')].map(b=>({id:b.dataset.id||uid('AC'),grupo:'',prov:nom,nom:(b.querySelector('.p_nom').value||'').trim()||'Portal',link:urlOk((b.querySelector('.p_link').value||'').trim()),
+  cuentas:[...b.querySelectorAll('.p_cu')].map((r,k,A)=>({et:A.length>1?'Usuario '+(k+1):'Usuario',u:(r.querySelector('.p_u').value||'').trim(),c:r.querySelector('.p_c').value||''})).filter(x=>x.u||x.c),nota:''})).filter(x=>x.link||x.cuentas.length)}
+const accGet=(id)=>(DB.acc||[]).find(a=>a.id===id);
+function accVer(id,k){const a=accGet(id),e=document.getElementById('pw_'+id+'_'+k);if(!a||!e)return;e.textContent=e.dataset.v==='1'?'••••••••':((a.cuentas[k]||{}).c||'');e.dataset.v=e.dataset.v==='1'?'0':'1'}
+function accCopiar(id,k,que){const a=accGet(id),c=a&&a.cuentas[k];if(!c)return;copiarTxt(que==='u'?c.u:c.c,que==='u'?'Usuario copiado':'Contraseña copiada')}
+function accCard(a,acc){
+ return `<div class="card" style="margin-bottom:12px"><div class="card-h"><h2>${esc(a.nom)}</h2>${a.prov?`<div class="n">${esc(a.prov)}</div>`:''}<div style="display:flex;gap:6px;flex-wrap:wrap">${a.link?`<a class="btn g s" href="${esc(a.link)}" target="_blank" rel="noopener">Abrir</a>`:''}${acc||''}</div></div>
+  <div class="card-b flush"><table><tbody>${(a.cuentas||[]).map((c,k)=>`<tr><td class="sub2" style="width:150px">${esc(c.et||'Usuario')}</td>
+   <td>${c.u?`${esc(c.u)} <button class="ib" style="width:28px;height:28px" title="Copiar usuario" onclick="accCopiar('${a.id}',${k},'u')">${ico('copy',13)}</button>`:'<span class="sub2">—</span>'}</td>
+   <td style="white-space:nowrap">${c.c?`<span id="pw_${a.id}_${k}" data-v="0" style="font-family:monospace;letter-spacing:.5px">••••••••</span> <button class="ib" style="width:28px;height:28px" title="Mostrar u ocultar" onclick="accVer('${a.id}',${k})">${ico('eye',13)}</button> <button class="ib" style="width:28px;height:28px" title="Copiar contraseña" onclick="accCopiar('${a.id}',${k},'c')">${ico('copy',13)}</button>`:'<span class="sub2">—</span>'}</td></tr>`).join('')||'<tr><td class="sub2" style="padding:12px 18px">Sin usuarios cargados</td></tr>'}</tbody></table>
+   ${a.nota?`<div class="sub2" style="padding:8px 18px 12px">${esc(a.nota)}</div>`:''}</div></div>`}
+function cfClaves(){
+ const A=DB.acc||[],propios=A.filter(a=>!a.prov),prov=A.filter(a=>a.prov),grupos=[...new Set(propios.map(a=>a.grupo||'Capacitación y Desarrollo'))],porProv={};prov.forEach(a=>(porProv[a.prov]=porProv[a.prov]||[]).push(a));
+ return `${accAviso()}
+ <div class="aviso" style="margin-bottom:14px">Las claves que cargues acá las puede ver cualquier persona habilitada para entrar a la app. Usalo para accesos compartidos del equipo.</div>
+ <div class="acts" style="margin-bottom:16px"><button class="btn" ${accOk()?'':'disabled'} onclick="accForm('')">+ Agregar acceso</button>
+  <label class="btn n" style="cursor:pointer" title="Cargar accesos desde un archivo .json">Importar desde archivo<input type="file" accept=".json,application/json" style="display:none" onchange="accImportarArchivo(this)"></label></div>
+ ${(grupos.length?grupos:['Capacitación y Desarrollo']).map(g=>`<h3 style="margin:18px 0 10px;font-size:15px">${esc(g)}</h3>
+  ${propios.filter(a=>(a.grupo||'Capacitación y Desarrollo')===g).map(a=>accCard(a,accOk()?`<button class="btn n s" onclick="accForm('${a.id}')">Editar</button><button class="btn n s" onclick="accBorrar('${a.id}')">Quitar</button>`:'')).join('')||'<div class="sub2">Todavía no hay accesos propios cargados.</div>'}`).join('')}
+ <h3 style="margin:22px 0 4px;font-size:15px">Portales de proveedores</h3><div class="sub2" style="margin-bottom:10px">Se cargan y se editan desde la ficha de cada proveedor (solapa Proveedores). Acá están todos juntos.</div>
+ ${Object.keys(porProv).sort((a,b)=>a.localeCompare(b,'es')).map(n=>porProv[n].map(a=>accCard(a,`<button class="btn n s" onclick="verProv('${js(n)}')">Editar en el proveedor</button>`)).join('')).join('')||'<div class="sub2">Todavía no hay portales de proveedores cargados.</div>'}`}
+function accForm(id){const a=id?accGet(id):null;
+ modal(cab(a?'Editar acceso':'Nuevo acceso','Cuentas y contraseñas del equipo')+`<div class="mdl-b"><div class="form">
+  <div class="f"><label>Grupo</label><input class="fi" id="ac_g" list="dlAccG" value="${esc(a?(a.grupo||'Capacitación y Desarrollo'):'Capacitación y Desarrollo')}"><datalist id="dlAccG">${[...new Set((DB.acc||[]).filter(x=>!x.prov).map(x=>x.grupo||'Capacitación y Desarrollo'))].map(g=>`<option value="${esc(g)}">`).join('')}</datalist></div>
+  <div class="f"><label>Nombre</label><input class="fi" id="ac_n" value="${esc(a?a.nom:'')}" placeholder="Ej: UFYO MAIL"></div>
+  <div class="f full"><label>Link <span class="sub2" style="font-weight:400">· opcional</span></label><input class="fi" id="ac_l" type="url" value="${esc(a?a.link||'':'')}" placeholder="https://…"></div>
+  <div class="f full"><label>Usuarios y contraseñas</label><div id="ac_cu">${((a&&a.cuentas&&a.cuentas.length)?a.cuentas:[{}]).map(c=>accCuentaFila(c,true)).join('')}</div><button type="button" class="btn n s" onclick="document.getElementById('ac_cu').insertAdjacentHTML('beforeend',accCuentaFila({},true))">+ Agregar otro usuario / contraseña</button></div>
+  <div class="f full"><label>Nota <span class="sub2" style="font-weight:400">· opcional</span></label><input class="fi" id="ac_nota" value="${esc(a?a.nota||'':'')}"></div></div>
+  <div class="acts"><button class="btn" onclick="accGuardar('${id||''}')">Guardar</button><button class="btn n" onclick="cerrar()">Cancelar</button></div></div>`,'sm')}
+function accGuardar(id){const g=k=>(document.getElementById(k).value||'').trim(),nom=g('ac_n');if(!nom){toast('Poné el nombre');return}
+ const cuentas=[...document.querySelectorAll('#ac_cu .p_cu')].map(r=>({et:(r.querySelector('.p_et').value||'').trim(),u:(r.querySelector('.p_u').value||'').trim(),c:r.querySelector('.p_c').value||''})).filter(x=>x.u||x.c);
+ const o={id:id||uid('AC'),grupo:g('ac_g')||'Capacitación y Desarrollo',prov:'',nom,link:g('ac_l')?urlOk(g('ac_l')):'',cuentas,nota:g('ac_nota')};
+ DB.acc=DB.acc||[];const i=DB.acc.findIndex(x=>x.id===o.id);if(i>=0)DB.acc[i]=o;else DB.acc.push(o);guardar();cerrar();refresh();toast('Acceso guardado')}
+function accBorrar(id){const a=accGet(id);if(!a)return;confirmar(`Vas a quitar el acceso <b>${esc(a.nom)}</b>.`,`()=>{DB.acc=DB.acc.filter(x=>x.id!=='${id}');guardar();refresh();toast('Acceso quitado')}`)}
+/* importar desde un archivo .json (así las claves no viajan dentro del código de la app) */
+function accImportarArchivo(inp){const f=inp.files&&inp.files[0];if(!f)return;const rd=new FileReader();
+ rd.onload=ev=>{try{const J=JSON.parse(ev.target.result),r=accImportar(J);toast('Importado: '+r.nuevos+' acceso'+(r.nuevos===1?'':'s')+(r.provNuevos?' · '+r.provNuevos+' proveedor'+(r.provNuevos===1?'':'es')+' nuevo'+(r.provNuevos===1?'':'s'):'')+(r.dup?' · '+r.dup+' ya estaba'+(r.dup===1?'':'n'):''))}catch(e){console.error(e);toast('No pude leer ese archivo')}};rd.readAsText(f);inp.value=''}
+function accImportar(J){
+ DB.acc=DB.acc||[];let nuevos=0,provNuevos=0,dup=0;
+ const mismo=(a,b)=>provPn(a.nom)===provPn(b.nom)&&provPn(a.prov||'')===provPn(b.prov||'')&&String(a.link||'')===String(b.link||'');
+ (J.propios||[]).forEach(x=>{const o={id:uid('AC'),grupo:x.grupo||'Capacitación y Desarrollo',prov:'',nom:x.nombre,link:x.link||'',cuentas:x.cuentas||[],nota:x.nota||''};if(DB.acc.some(a=>mismo(a,o)))dup++;else{DB.acc.push(o);nuevos++}});
+ (J.proveedores||[]).forEach(x=>{let p=DB.prov.find(y=>provPn(y.nom)===provPn(x.proveedor));if(!p){p={id:uid('P'),nom:x.proveedor,tipos:x.tipo?[x.tipo]:[],mail:'',mails:[],tel:'',cuit:'',contacto:'',notas:'',activo:true};DB.prov.push(p);provNuevos++}
+  const o={id:uid('AC'),grupo:'',prov:p.nom,nom:x.nombre||'Portal',link:x.link||'',cuentas:x.cuentas||[],nota:x.nota||''};if(DB.acc.some(a=>mismo(a,o)))dup++;else{DB.acc.push(o);nuevos++}});
+ guardar();refresh();return{nuevos,provNuevos,dup}}
 function nuevoProv(){
  modal(cab('Nuevo proveedor','')+`<div class="mdl-b"><div class="form">
   <div class="f full"><label>Nombre</label><input id="w_nom"></div>
@@ -5659,6 +5924,7 @@ function nuevoProv(){
 }
 function crearProv(){const g=k=>document.getElementById(k).value;
  if(!g('w_nom').trim()){toast('Poné el nombre');return}
+ if(window._provChk!==g('w_nom')){window._provChk=g('w_nom');const ex=DB.prov.find(x=>provPn(x.nom)===provPn(g('w_nom')));if(ex){toast('«'+ex.nom+'» ya existe');return}if(provAsk('w_nom',()=>crearProv()))return}
  DB.prov.push({id:uid('P'),nom:g('w_nom').trim(),tipos:[g('w_tipo')],contacto:g('w_cont'),
   mail:g('w_mail'),tel:g('w_tel'),cuit:g('w_cuit'),notas:''});
  guardar();cerrar();refresh();toast('Proveedor creado')}
@@ -5680,11 +5946,12 @@ let CF={sub:0,q:''};
 V.cfg=()=>`
  <div class="head"><div class="eyebrow">Ejercicio ${EJ}</div><h1>Configuración</h1>
   <div class="sub">Nómina, valores de referencia, ejercicios y respaldo de los datos.</div></div>
- ${tabs('cf',['Nómina','Valores','Ejercicios','Datos y respaldo'])}
+ ${tabs('cf',['Nómina','Valores','Ejercicios','Datos y respaldo','Contraseñas'])}
  <div class="pane on" id="pn-cf-0">${cfNom()}</div>
  <div class="pane" id="pn-cf-1">${cfVal()}${cfSocFis()}</div>
  <div class="pane" id="pn-cf-2">${cfEj()}</div>
- <div class="pane" id="pn-cf-3">${cfInstalar()}${cfDatos()}</div>`;
+ <div class="pane" id="pn-cf-3">${cfInstalar()}${cfDatos()}</div>
+ <div class="pane" id="pn-cf-4">${cfClaves()}</div>`;
 V.cfg.after=()=>{
  tab('cf',CF.sub);
  const q=$('#nq');if(q)q.oninput=e=>{CF.q=e.target.value;clearTimeout(window._t5);
@@ -6059,7 +6326,7 @@ function cfDatos(){return `
  </div></div>`;
 }
 function respaldo(){
- const b=new Blob([JSON.stringify(DB)],{type:'application/json'});
+ const b=new Blob([JSON.stringify(DB,(k,v)=>(k==='acc'&&v===DB.acc)?undefined:v)],{type:'application/json'});
  const a=document.createElement('a');a.href=URL.createObjectURL(b);
  a.download='plan-capacitacion-'+EJ.replace('.','')+'-'+HOY+'.json';a.click();toast('Respaldo descargado')}
 function exportar(){ir('exp')}
@@ -6280,8 +6547,8 @@ async function exIdiVisual(){
 function exFactDet(){
  const out=[];exEjs().forEach(ej=>exConEj(ej,()=>todasFacturas()).forEach(f=>{
   const pl=f.idi?null:DB.plan.find(x=>x.id===(f.aid||f.pid||f.ref)),pa=exConEj(ej,()=>DB.part.find(x=>x.ej===ej&&x.id===f.cid))||{},pv=DB.prov.find(x=>x.nom===f.prov)||{};
-  out.push({'Ejercicio':ej,'Mes de pago':f.mpago||'Sin mes','Fecha de factura':f.fcarga||'','N° de factura':f.beca?'Rendición de beca':(f.nro||'Sin N°'),'Estado':f.est,'Tipo':f.tipo,'Línea':f.idi?'Idiomas':f.beca?'Becas':((pl&&pl.linea)||'—'),
-   'Concepto':f.act,'Proveedor':f.prov||'—','CUIT del proveedor':pv.cuit||'','Sociedad':f.soc||'—','Cuenta':f.cta||'a definir','Descripción de la cuenta':pa.desc||'','Cuenta completa':(ab(f.soc||'')||'—')+' · '+(f.cta||'a definir')+(pa.desc?' · '+pa.desc:''),'Monto':exNum(f.monto),'Fecha de pago':f.fpago||'','Pedido de pago (becas)':f.beca?(f.nro||''):''})}));
+  out.push({'Ejercicio':ej,'Mes de pago':f.mpago||'Sin mes','Fecha de factura':f.fcarga||'','N° de factura':f.nro||'Sin N°','Estado':f.est,'Tipo':f.tipo,'Línea':f.idi?'Idiomas':f.beca?'Becas':((pl&&pl.linea)||'—'),
+   'Concepto':f.act,'Proveedor':f.prov||'—','CUIT del proveedor':pv.cuit||'','Sociedad':f.soc||'—','Cuenta':f.cta||'a definir','Descripción de la cuenta':pa.desc||'','Cuenta completa':(ab(f.soc||'')||'—')+' · '+(f.cta||'a definir')+(pa.desc?' · '+pa.desc:''),'Monto':exNum(f.monto),'Fecha de pago':f.fpago||'','Pedido de pago (becas)':f.beca?(f.pedido||''):'','Centro de costo':cecoTxt(f)})}));
  out.sort((a,b)=>a['Mes de pago'].localeCompare(b['Mes de pago'])||a['Cuenta completa'].localeCompare(b['Cuenta completa'])||a['Concepto'].localeCompare(b['Concepto']));
  return out.filter(r=>EXF.tipo[r['Tipo']]!==false&&EXF.est[r['Estado']]!==false&&(!Object.values(EXF.soc).some(Boolean)||EXF.soc[r['Sociedad']]))}
 function exPanelFact(){const all=(()=>{const s=EXF.soc;EXF.soc={};const r=exFactDet();EXF.soc=s;return r})(),D=exFactDet(),tot=D.reduce((a,r)=>a+r['Monto'],0),socs=[...new Set(all.map(r=>r['Sociedad']))].sort();
@@ -6486,10 +6753,11 @@ const SBCOLS={
  personas_historico:[['nombre','S'],['legajo','s'],['posicion','s'],['area','s'],['sociedad','s'],['vertical','s'],['ingreso','d'],['ciudad','s'],['lider','s'],['extra','j']],
  historico_capacitaciones:[['id','S'],['persona','S'],['capacitacion','S'],['ejercicio','S'],['proveedor','s'],['estado','S'],['extra','j']],
  nomina_cargas:[['id','S'],['fecha','d'],['mes','s'],['total','i'],['altas','i'],['bajas','i'],['cambios','i']],
- configuracion:[['clave','S'],['valor','j']]
+ configuracion:[['clave','S'],['valor','j']],
+ accesos:[['id','S'],['grupo','s'],['proveedor','s'],['nombre','S'],['link','s'],['cuentas','j'],['nota','s'],['extra','j']]
 };
 /* clave primaria de cada tabla que la app escribe (y orden en que se escriben) */
-const SBPK={ejercicios:['id'],proveedores:['id'],colaboradores:['id'],partidas_presupuesto:['ejercicio','id'],capacitaciones:['id'],facturas:['id'],becas:['id'],idiomas_alumnos:['id'],idiomas_facturas:['id'],personas_historico:['nombre'],historico_capacitaciones:['id'],nomina_cargas:['id'],configuracion:['clave']};
+const SBPK={accesos:['id'],ejercicios:['id'],proveedores:['id'],colaboradores:['id'],partidas_presupuesto:['ejercicio','id'],capacitaciones:['id'],facturas:['id'],becas:['id'],idiomas_alumnos:['id'],idiomas_facturas:['id'],personas_historico:['nombre'],historico_capacitaciones:['id'],nomina_cargas:['id'],configuracion:['clave']};
 const SBORDEN=['ejercicios','proveedores','colaboradores','partidas_presupuesto','capacitaciones','facturas','becas','idiomas_alumnos','idiomas_facturas','personas_historico','historico_capacitaciones','nomina_cargas','configuracion'];
 /* hijos que se reemplazan completos cuando cambia algo del padre: tabla padre → [[tabla hija, columna del padre]] */
 const SBHIJOS={capacitaciones:[['capacitacion_participantes','capacitacion_id'],['capacitacion_encuentros','capacitacion_id'],['capacitacion_gastos','capacitacion_id']],
@@ -6498,6 +6766,7 @@ const SBLEER=[...SBORDEN.filter(t=>t!=='ejercicios'),'centros_costo','capacitaci
 
 /* ═════ DB (app) → filas ═════ */
 const K_CAP=new Set(['id','ej','nom','prov','tipo','sub','dict','foco','alc','est','presup','aprob','faprob','fli','fest','freal','ini','fin','ppto','real','carg','motivo','prox','hs','notas','accion','estFijo','asistencia','arrastra','origen','noInsc','facturar','repOv','ctaOv','chk','docs','parts','enc','asis','gastos']);
+const K_ACC=new Set(['id','grupo','prov','nom','link','cuentas','nota']);
 const K_PART=new Set(['lg','nom','soc','un','vert','vn','lider','est','motivo','grupo','mail','nota','repetir']);
 const K_ENC=new Set(['id','fecha','hora','dur','tit','lugar','grupo','mod']);
 const K_GASTO=new Set(['id','concepto','prov','monto','cid','nro','fcarga','fpago','alta']);
@@ -6554,9 +6823,13 @@ function sbToRows(DB){
  R.historico_capacitaciones=(DB.hist||[]).filter(h=>/^\d{2}\.\d{2}$/.test(h.e||'')).map(h=>({id:cT(h.id),persona:cT(h.n),capacitacion:cT(h.c),ejercicio:h.e,proveedor:cS(h.i),estado:cT(h.s||'Realizado'),extra:sbExtra(h,K_HIST)}));
  /* carga de nómina */
  R.nomina_cargas=(DB.nomLog||[]).map(x=>({id:[x.fecha,x.mes,x.total,x.altas,x.bajas].join('|'),fecha:cD(x.fecha),mes:cS(x.mes),total:cI(x.total),altas:cI(x.altas),bajas:cI(x.bajas),cambios:cI(x.cambios)}));
+ /* accesos (portales y contraseñas): tabla opcional, se usa solo si ya está creada en la base */
+ R.accesos=(DB.acc||[]).map(a=>({id:cT(a.id),grupo:cS(a.grupo),proveedor:cS(a.prov),nombre:cT(a.nom),link:cS(a.link),cuentas:cJ(a.cuentas||[]),nota:cS(a.nota),extra:sbExtra(a,K_ACC)}));
  /* documentos sueltos (lo que no tiene tabla propia) */
  const cfg=Object.assign({},DB.cfg||{});if(!cfg.hoyManual)delete cfg.hoy;
- const docs={app:cfg,mig:DB.mig||{},nomPend:DB.nomPend||[],nomAct:DB.nomAct||null,rel:DB.rel||[],comp:DB.comp||[],inv:DB.inv||{},p2627:DB.p2627||null,cierre:DB.cierre||{},ceco:DB.ceco||[]};
+ const docs={app:cfg,mig:DB.mig||{},nomPend:DB.nomPend||[],nomAct:DB.nomAct||null,rel:DB.rel||[],comp:DB.comp||[],inv:DB.inv||{},p2627:DB.p2627||null,cierre:DB.cierre||{},ceco:DB.ceco||[],
+  /* accesos: si la tabla accesos todavía no existe en la base, se guardan acá (misma protección); si ya existe, este documento queda vacío */
+  accesos:(typeof SB!=='undefined'&&SB&&SB.cli)?((SB.accOk===true)?[]:(DB.acc||[])):undefined};
  R.configuracion=Object.keys(docs).filter(k=>docs[k]!==undefined).map(k=>({clave:k,valor:docs[k]===null?null:docs[k]}));
  /* ejercicios que hay que tener (los que usan las tablas con FK) */
  const cerrados=new Set(Object.keys(DB.cierre||{}));
@@ -6574,6 +6847,8 @@ function sbFromRows(T){
  DB.nom=g('colaboradores').map(r=>sbBack({legajo:o(r.legajo),nombre:r.nombre,mail:o(r.mail),sociedad:o(r.sociedad),unidad:o(r.unidad),vertical:o(r.vertical),lider:o(r.lider),posicion:o(r.posicion),ingreso:o(r.ingreso),ciudad:o(r.ciudad),liderC:o(r.lider_c),vn:o(r.vertical_app),...(r.telefono?{telefono:r.telefono}:{})},r.extra));
  DB.part=g('partidas_presupuesto').map(r=>{const c={id:r.id,soc:o(r.sociedad),ab:o(r.abreviatura),cta:r.cuenta,desc:r.descripcion,area:o(r.area),ej:r.ejercicio,base:+r.base||0,di:+r.di||0,asignado:+r.asignado||0,topeG:+r.tope_gestion||0,realG:+r.real_gestion||0,resp:o(r.responsable)};
   if(+r.provision)c.prov=+r.provision;if(r.ppto_ejercicio_anterior!==null&&r.ppto_ejercicio_anterior!==undefined)c.ppto2526=+r.ppto_ejercicio_anterior;if(r.mensual!==null&&r.mensual!==undefined)c.mensual=+r.mensual;if(r.nota)c.nota=r.nota;return sbBack(c,r.extra)});
+ DB.acc=((typeof SB!=='undefined'&&SB&&SB.accOk===true)?g('accesos'):[]).map(r=>sbBack({id:r.id,grupo:o(r.grupo),prov:o(r.proveedor),nom:r.nombre,link:o(r.link),cuentas:Array.isArray(r.cuentas)?r.cuentas:[],nota:o(r.nota)},r.extra));
+ {const d=cfgDoc('accesos');const tabla=(typeof SB!=='undefined'&&SB&&SB.accOk===true);if(!DB.acc.length&&Array.isArray(d)&&d.length)DB.acc=d;if(tabla&&Array.isArray(d)&&d.length)DB._accMig=true}   /* tabla ausente: leen del documento · tabla vacía con documento: se migran */
  DB.ceco=cfgDoc('ceco')||g('centros_costo').map(r=>({soc:o(r.sociedad),cod:r.codigo,unidad:o(r.unidad)}));
  /* capacitaciones */
  const por=(t,col)=>{const m={};g(t).forEach(r=>(m[r[col]]=m[r[col]]||[]).push(r));return m};
@@ -6627,7 +6902,7 @@ function sbFromRows(T){
 const SB={cli:null,snap:{},snapH:{},sucio:false,corriendo:false,otra:false,t:null,err:null,reint:null,ultimo:null};
 const SBORD={proveedores:'orden',colaboradores:'orden',partidas_presupuesto:'orden',capacitaciones:'orden',capacitacion_participantes:'orden',capacitacion_encuentros:'id',
  capacitacion_asistencia:['encuentro_id','participante_id'],capacitacion_gastos:'orden',facturas:'orden',becas:'orden',beca_rendiciones:'id',idiomas_alumnos:'orden',idiomas_pagos:'id',
- idiomas_facturas:'orden',idiomas_factura_alumnos:'id',personas_historico:'nombre',historico_capacitaciones:'orden',nomina_cargas:'id',configuracion:'clave',centros_costo:'id'};
+ idiomas_facturas:'orden',idiomas_factura_alumnos:'id',personas_historico:'nombre',historico_capacitaciones:'orden',nomina_cargas:'id',configuracion:'clave',centros_costo:'id',accesos:'orden'};
 const SBPAG=1000,SBLOTE=400,SBSEP='\u0001';
 const sbPk=(t,r)=>SBPK[t].map(c=>r[c]).join(SBSEP);
 const sbJ=r=>JSON.stringify(r);
@@ -6644,6 +6919,14 @@ async function sbTabla(t){
   if(total!==null){if(out.length>=total)break}else if(data.length<SBPAG)break;
   desde=out.length}
  return out}
+/* la tabla accesos es nueva: si todavía no está creada en la base, la app sigue andando y avisa que falta actualizar */
+async function sbProbarAccesos(){
+ try{const{error}=await SB.cli.from('accesos').select('id').range(0,0);
+  if(error){SB.accOk=false;return}
+  SB.accOk=true;if(!SBORDEN.includes('accesos'))SBORDEN.push('accesos');if(!SBLEER.includes('accesos'))SBLEER.push('accesos')}
+ catch(e){SB.accOk=false}}
+/* si los accesos vinieron del documento y ya existe la tabla, se fuerza el guardado en la tabla */
+function sbAccMig(){if(typeof DB!=='undefined'&&DB&&DB._accMig){delete DB._accMig;if(SB.snap.accesos)SB.snap.accesos=new Map();if(SB.snap.configuracion)SB.snap.configuracion.set('accesos','forzar');guardar()}}   /* se reescribe la tabla y se vacía el documento viejo */
 async function sbLeerTodo(){const T={};await Promise.all(SBLEER.map(async t=>{T[t]=await sbTabla(t)}));return T}
 
 /* foto de lo que hay en la base: sirve para mandar solo lo que cambió */
@@ -6790,9 +7073,9 @@ function vistaVacia(){
 async function sbArrancar(){
  loginVista('carga');
  try{
-  const T=await sbLeerTodo();DB=sbFromRows(T);SB.lectura=Date.now();
+  await sbProbarAccesos();const T=await sbLeerTodo();DB=sbFromRows(T);SB.lectura=Date.now();
   const u=(await SB.cli.auth.getUser()).data.user;SB.user=u?u.email:'';const el=$('#sbUser');if(el)el.textContent=SB.user;
-  sbSnapshot(DB);SB.listo=true;$('#login').classList.remove('on');sbEstado('ok');
+  sbSnapshot(DB);SB.listo=true;$('#login').classList.remove('on');sbEstado('ok');sbAccMig();
   if(!DB.plan.length&&!DB.nom.length&&!DB.part.length){vistaVacia();return}
   postCarga();
  }catch(e){console.error(e);SB.listo=false;loginVista('error',e&&e.message?e.message:String(e))}}
@@ -6801,9 +7084,9 @@ async function sbRecargar(silencioso){
  if(SB.sucio||SB.corriendo){if(!silencioso)toast('Se está guardando: esperá un momento');return}
  try{
   if(!silencioso)toast('Actualizando datos…');
-  const T=await sbLeerTodo(),ej=EJ,ruta=RUTA,arg=ARG;
+  await sbProbarAccesos();const T=await sbLeerTodo(),ej=EJ,ruta=RUTA,arg=ARG;
   {const pre=sbToRows(DB);if(sbHay(pre.R,pre.H)){if(!silencioso)toast('Tenés cambios sin guardar: esperá un momento y probá de nuevo');return}}
-  DB=sbFromRows(T);SB.lectura=Date.now();sbSnapshot(DB);
+  DB=sbFromRows(T);SB.lectura=Date.now();sbSnapshot(DB);sbAccMig();
   if(!DB.plan.length&&!DB.nom.length&&!DB.part.length){vistaVacia();return}
   postCarga(ej);RUTA=ruta;ARG=arg;ir(ruta,arg);if(!silencioso)toast('Datos actualizados')
  }catch(e){console.error(e);toast('No se pudo actualizar: '+(e.message||e))}}
