@@ -1303,7 +1303,7 @@ V.res=()=>{
 
  <div class="mets">
   ${met('Presupuesto base (fija)',plata(N.base),`${N.rows.length} cuentas de capacitación`,'met-tot','pres')}
-  ${met('Ejecutado',plata(N.ej),'sin contar las DI','met-eje','pres')}
+  ${met('Ejecutado',plata(N.ej),`<b>${pctD(N.ej,N.base)}</b> del presupuesto base`,'met-eje','pres')}
   ${met('Ejecutado DI',plata(N.di),'decisiones de inversión aprobadas: van aparte','met-fue','pres')}
   ${met('Real',plata(N.real),'ejecutado + DI','met-tot cel','pres')}
   ${metDisp(N,'pres')}
@@ -4154,7 +4154,7 @@ V.pres=(arg)=>{
   <div class="sub">Base asignada por cuenta y lo que se va contabilizando a medida que cargás capacitaciones, idiomas y becas.</div></div></div></div>
  <div class="mets">
   ${met('Presupuesto base (fija)',plata(base),`presupuesto asignado · ${R.length} cuentas`,'met-tot')}
-  ${met('Ejecutado',plata(ej),'sin contar las DI','met-eje')}
+  ${met('Ejecutado',plata(ej),`<b>${pctD(ej,base)}</b> del presupuesto base`,'met-eje')}
   ${met('Ejecutado DI',plata(di),'decisiones de inversión ejecutadas','met-fue','pres:di')}
   ${met('Real',plata(real),'ejecutado + DI','met-tot cel')}
  </div>
