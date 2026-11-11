@@ -821,6 +821,10 @@ body.modal-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
  .mdl-b .acts{position:sticky;bottom:0;background:#fff;padding:12px 0 calc(10px + env(safe-area-inset-bottom,0px));margin-top:14px;border-top:1px solid var(--linea-2);z-index:2}
 }
 @media(min-width:721px){body.modal-open{position:static;overflow:hidden}}
+
+/* banderas de idiomas dibujadas (no dependen de la tipografía de emojis del sistema) */
+.flag{display:inline-block;vertical-align:-2px;margin-right:5px;line-height:0}
+.flag svg{display:block;border-radius:2px;box-shadow:0 0 0 1px rgba(0,0,0,.14)}
 </style>
 </head>
 <body>
@@ -918,6 +922,8 @@ function limpiarVersionesViejas(){}
 /* ── constantes ── */
 const ESTADOS=['Pendiente','Inscripto','En curso','Finalizada','Cancelada','Diferida'];
 const TIPOS=['Programa','Curso','Coaching','Assessment','Jornada'];
+/* cómo se ve el tipo: Curso Externo, Programa Interno… (lo guardado sigue siendo Curso / Programa / Jornada) */
+const tipoLbl=p=>p.tipo==='Curso'?(p.dict==='Interno'?'Curso Interno':'Curso Externo'):p.tipo==='Programa'?(p.dict==='Interno'?'Programa Interno':'Programa Externo'):p.tipo;
 const SUBS=['Coaching','Assessment','Potencial'];
 const FOCOS=['Técnico','Soft','IA'];
 const FCOL={'Técnico':'c-gris','Soft':'c-dif','IA':'c-cur'};
@@ -1404,6 +1410,8 @@ function migrarMG2627(){
 function migrarPostCarga(){
  if(!DB.acc)DB.acc=[];
  DB.mig=DB.mig||{};let c=false;
+ /* el idioma siempre con el nombre correcto (Inglés / Portugués): así cuenta, agrupa y lleva su bandera */
+ DB.idi.forEach(x=>{const k=idiCanon(x.idioma);if(k&&k!==x.idioma){x.idioma=k;c=true}});
  DB.plan.forEach(p=>{if(!p.linea&&p.ej==='26.27'&&p.prov==='Interna'&&/^Mercado (granario|de capitales)$/.test(p.nom)){p.linea='Conocé';c=true}});
  DB.plan.forEach(p=>{if(!p.linea){p.linea='Crecé';c=true}});   /* todo lo que no tenga línea es Crecé */
  /* coaching / potencial / assessment: el "encuentro de inicio" automático los hacía terminar el mismo día */
@@ -1581,7 +1589,7 @@ V.plan=(arg)=>{
    return `<tr class="clic" onclick="ir('act','${p.id}')">
    <td><div class="nom">${esc(p.nom)} ${linChip(p)}${p.prox?'<span class="chip c-gris" title="Marcada para pasar al próximo ejercicio">Pasa al próximo ejercicio</span> ':''}${p.diferidaA?`<span class="chip c-gris">Pasó al ${esc(p.diferidaA)}</span> `:''}${p.arrastra?'<span class="chip c-dif" title="Venía del ejercicio anterior y quedó pendiente">↩ Arrastra del ej. pasado</span> ':''}${p.presup==='Fuera'?`<span class="chip c-fue" title="Decisión de inversión${p.aprob?' · aprobó '+esc(p.aprob):''}">DI</span>`:''}</div>
     <div class="sub2">${p.dict==='Interno'?'Interna':'Externa'}${(p.notas||p.accion)?' · '+esc((p.notas||p.accion).slice(0,54)):''}</div></td>
-   <td><span class="chip c-gris">${esc(p.tipo)}${p.sub?' · '+esc(p.sub):''}</span></td>
+   <td><span class="chip c-gris">${esc(tipoLbl(p))}${p.sub?' · '+esc(p.sub):''}</span></td>
    <td class="sub2">${esc(p.prov||'—')}${p.coach?`<div style="font-size:11px">Coach: ${esc(p.coach)}</div>`:''}</td>
    <td class="num" style="font-size:12px;white-space:nowrap">${fs}</td>
    <td class="r num">${rec?`<b>${activos(p).filter(enRec).length}</b><span class="sub2">de ${activos(p).length}</span>`:activos(p).length}${tieneAsis(p)?`<div class="sub2" style="font-size:10.5px">${asisProm(p)}% asist.</div>`:''}</td>
@@ -2464,6 +2472,7 @@ function cecoSel(p,r){const L=cecoDe(r.soc);if(!L.length)return '';const cur=(p.
 function cecoSet(id,key,v){const p=acto(id);p.ceco=p.ceco||{};if(v)p.ceco[key]=v;else delete p.ceco[key];if(!Object.keys(p.ceco).length)delete p.ceco;guardar();volverFicha(id,3);toast(v?'Centro de costo guardado':'Centro de costo quitado')}
 function cecoFact(f){const p=f.ref?acto(f.ref):null;if(!p||!p.ceco)return [];const L=cecoDe(f.soc);if(!L.length)return [];
  return [...new Set(Object.entries(p.ceco).filter(([k])=>!f.cid||k.startsWith(f.cid+'|')).map(([,v])=>v))].map(cod=>({cod,unidad:(L.find(c=>c.cod===cod)||{}).unidad||''}))}
+const cecoAct=p=>[...new Set(Object.values(p.ceco||{}))].map(cod=>{const c=(DB.ceco||[]).find(x=>x.cod===cod);return cod+(c&&c.unidad?' - '+c.unidad:'')}).join(' / ');
 const cecoTxt=f=>cecoFact(f).map(c=>c.cod+(c.unidad?' - '+c.unidad:'')).join(' / ');
 /* mensaje para imputar internamente: el % de cada cuenta, la referencia y, en FASA, el Centro de Costo para completar */
 function mensajeImputacion(p,soloSoc){
@@ -2489,11 +2498,10 @@ function copiarReparto(id){
 
 /* ── alta ── */
 const TIPOALTA=[
- {k:'int',t:'Capacitación interna',d:'La damos nosotros. Fecha de inscripción y las fechas de cada encuentro.',ic:'🏠'},
- {k:'ext',t:'Capacitación externa',d:'La dicta un tercero: Bolsa, consultora, universidad.',ic:'🏛'},
+ {k:'cap',t:'Capacitación / Curso',d:'Interna o externa: programa, curso o jornada. El tipo se elige adentro.',ic:'🎓'},
  {k:'coa',t:'Coaching / Assessment',d:'Procesos con fecha de inicio y de finalización.',ic:'🎯'},
  {k:'idi',t:'Idioma',d:'Alta de una persona con su profe. Se gestiona en Idiomas.',ic:'💬'},
- {k:'bec',t:'Beca',d:'Carrera o posgrado. Se gestiona en Becas.',ic:'🎓'}];
+ {k:'bec',t:'Beca',d:'Carrera o posgrado. Se gestiona en Becas.',ic:'📚'}];
 function elegirTipo(){
  modal(cab('¿Qué querés cargar?','Ejercicio '+EJ)+`<div class="mdl-b" style="padding:14px 16px 20px">
   ${TIPOALTA.map((x,i)=>`<button class="opt" onclick="formAlta('${x.k}')">
@@ -2503,16 +2511,17 @@ function elegirTipo(){
 function formAlta(k){
  if(k==='idi'){cerrar();LG.sub=0;ir('idio');setTimeout(()=>altaIdioma(),120);return}
  if(k==='bec'){cerrar();ir('bi');setTimeout(()=>altaBeca(),120);return}
- const esCoa=k==='coa', esInt=k==='int', esExt=k==='ext';
+ const esCap=k==='cap',esCoa=k==='coa', esInt=k==='int', esExt=k==='ext'||esCap;
  FECHAS=[{fecha:'',hora:''}];
- modal(cab(esCoa?'Coaching / Assessment':(esInt?'Capacitación interna':'Capacitación externa'),
-   esInt?'La dictamos nosotros':'La dicta un tercero')+`<div class="mdl-b"><div class="form">
+ modal(cab(esCap?'Capacitación / Curso':(esCoa?'Coaching / Assessment':(esInt?'Capacitación interna':'Capacitación externa')),
+   esCap?'Interna o externa · elegí el tipo':(esInt?'La dictamos nosotros':'La dicta un tercero'))+`<div class="mdl-b"><div class="form">
   <div class="f full"><label>Nombre</label><input id="a_nom" placeholder="${esCoa?'Coaching de Equipo · Back Office':'Operador mercado de granos'}"></div>
-  <div class="f"><label>${esInt?'Quién la dicta adentro':'Proveedor o institución'}</label>
-   <input id="a_prov" list="dlProvA" value="${esInt?'Interna':''}"></div>
+  <div class="f"><label>Proveedor o institución</label>
+   <input id="a_prov" list="dlProvA" placeholder="${esInt?'Si la dicta alguien de afuera, completalo':'Quién la dicta'}"></div>
   ${esCoa?`<div class="f"><label>Nombre de la coach <span class="sub2" style="font-weight:400">· opcional</span></label><input id="a_coach" placeholder="Ej: Guido Dichiara"></div>`:''}
   ${esCoa?`<div class="f"><label>Es un</label><select id="a_sub">${SUBS.map(t=>`<option>${t}</option>`).join('')}</select></div>`
-   :`<div class="f"><label>Tipo</label><select id="a_tipo">${TIPOS.map(t=>`<option>${t}</option>`).join('')}</select></div>`}
+   :esCap?`<div class="f"><label>Tipo</label><select id="a_tipo" onchange="altaTipo(this.value)"><option value="int">Programa Interno</option><option value="ext" selected>Curso Externo</option><option value="jor">Jornada</option></select></div>`
+   :`<div class="f"><label>Tipo</label><select id="a_tipo">${(esInt?[['Programa','Programa Interno'],['Jornada','Jornada']]:[['Curso','Curso Externo'],['Programa','Programa Externo'],['Jornada','Jornada']]).map(([v,l])=>`<option value="${v}">${l}</option>`).join('')}</select></div>`}
   <div class="f"><label>Foco</label><select id="a_foco">${FOCOS.map(t=>`<option ${esCoa&&t==='Soft'?'selected':''}>${t}</option>`).join('')}</select></div>
   <div class="f"><label>Línea (Conocé · Crecé · Explorá)</label><select id="a_lin"><option value="">Elegí la línea…</option>${LINEAS.map(t=>`<option>${t}</option>`).join('')}</select>
    <div class="hint">Define de qué parte del presupuesto sale.</div></div>
@@ -2520,17 +2529,7 @@ function formAlta(k){
   <div class="f"><label>Monto · lo que pagamos</label><input class="money" type="text" inputmode="numeric" id="a_ppto" value="0"></div>
   <div class="f full"><label>Link de la encuesta (opcional)</label><input id="a_enc" type="url" placeholder="https://… la encuesta que se manda al terminar">
    <div id="a_links" style="margin-top:10px"></div><button type="button" class="btn n s" onclick="linkAdd('a_links')">+ Agregar link</button><span class="sub2" style="margin-left:8px">opcional · material, documentos… con una referencia de qué es</span></div>
-  ${esCoa?`<div class="f"><label>Fecha de inicio</label><input type="date" id="a_ini"></div>
-   <div class="f"><label>Fecha de finalización</label><input type="date" id="a_fin"></div>`
-   :esExt?`<div class="f"><label>Fecha de inscripción</label><input type="date" id="a_fli"></div>
-    <div class="f"><label>Fecha de inicio</label><input type="date" id="a_ini"></div>
-    <div class="f"><label>Fecha de fin</label><input type="date" id="a_fin"></div>
-    <div class="hint" style="grid-column:1/-1">Es un curso externo: no se toma asistencia, alcanza con inicio y fin.</div>`
-   :`<div class="f"><label>Fecha de inscripción</label><input type="date" id="a_fli">
-     <div class="hint">El día que inscribimos internamente a la gente.</div></div>
-    <div class="f full"><label>Fechas de los encuentros</label>
-     <div class="hint" style="margin-bottom:6px">Una por cada encuentro. Pueden ser varias.</div>
-     <div id="boxF"></div></div>`}
+  <div id="a_fechas" style="display:contents">${altaFechas(esCoa?'coa':(esExt?'ext':'int'))}</div>
   <div class="f full"><label>¿Sale del presupuesto?</label><select id="a_pre" onchange="document.getElementById('a_dibox').style.display=this.value==='Fuera'?'contents':'none'">
    <option value="Dentro">Dentro del presupuesto</option>
    <option value="Fuera">Fuera del presupuesto — decisión de inversión</option></select></div>
@@ -2541,6 +2540,27 @@ function formAlta(k){
  <datalist id="dlProvA">${DB.prov.map(x=>`<option value="${esc(x.nom)}">`).join('')}</datalist>`);
  if(!esCoa&&!esExt)pintaFechas();
 }
+/* las fechas cambian según el tipo: externa (inscripción, inicio y fin) o interna (inscripción y cada encuentro) */
+function altaFechas(kind){
+ if(kind==='coa')return `<div class="f"><label>Fecha de inicio</label><input type="date" id="a_ini"></div>
+   <div class="f"><label>Fecha de finalización</label><input type="date" id="a_fin"></div>`;
+ if(kind==='ext')return `<div class="f"><label>Fecha de inscripción</label><input type="date" id="a_fli"></div>
+    <div class="f"><label>Fecha de inicio</label><input type="date" id="a_ini"></div>
+    <div class="f"><label>Fecha de fin</label><input type="date" id="a_fin"></div>
+    <div class="hint" style="grid-column:1/-1">No se toma asistencia: alcanza con inicio y fin.</div>`;
+ return `<div class="f"><label>Fecha de inscripción</label><input type="date" id="a_fli">
+     <div class="hint">El día que inscribimos internamente a la gente.</div></div>
+    <div class="f"><label>Fecha de inicio</label><input type="date" id="a_ini"></div>
+    <div class="f"><label>Fecha de fin</label><input type="date" id="a_fin"></div>
+    <div class="f full"><label>Fechas de los encuentros <span class="sub2" style="font-weight:400">· opcional, para tomar asistencia</span></label>
+     <div class="hint" style="margin-bottom:6px">Una por cada encuentro; pueden ser varias. Si no las cargás ahora, podés sumarlas después desde la ficha.</div>
+     <div id="boxF"></div></div>`}
+function altaTipo(v){const box=document.getElementById('a_fechas');if(!box)return;const val=i=>(document.getElementById(i)||{}).value||'',fli=val('a_fli'),ini0=val('a_ini'),fin0=val('a_fin');
+ const jint=v==='jor'&&!!(document.getElementById('a_jint')&&document.getElementById('a_jint').checked),kind=(v==='int'||jint)?'int':'ext';
+ box.innerHTML=(v==='jor'?`<div class="f full"><label class="check" style="font-size:12.5px"><input type="checkbox" id="a_jint" ${jint?'checked':''} onchange="altaTipo('jor')"> La dicta alguien de fyo (interna: con fecha de cada encuentro y asistencia)</label></div>`:'')+altaFechas(kind);
+ [['a_fli',fli],['a_ini',ini0],['a_fin',fin0]].forEach(([i,v])=>{const e=document.getElementById(i);if(e&&v)e.value=v});if(kind==='int'){FECHAS=[{fecha:'',hora:''}];pintaFechas()}}
+/* tipo que se guarda: Programa / Curso / Jornada (el formulario único manda int / ext / jor) */
+const tipoAlta=g=>{const v=g('a_tipo');return v==='int'?'Programa':v==='ext'?'Curso':v==='jor'?'Jornada':v};
 let FECHAS=[];
 function pintaFechas(){
  const c=document.getElementById('boxF');if(!c)return;
@@ -2550,6 +2570,7 @@ function pintaFechas(){
   +`<button class="btn g s" onclick="FECHAS.push({fecha:'',hora:''});pintaFechas()">+ Agregar más fechas</button>`;
 }
 function crear(k){
+ if(k==='cap'){const tv=(document.getElementById('a_tipo')||{}).value,ji=document.getElementById('a_jint');k=(tv==='int'||(tv==='jor'&&ji&&ji.checked))?'int':'ext'}
  if(!window._provYa&&document.getElementById('a_prov')){if(provAsk('a_prov',()=>{window._provYa=true;try{crear(k)}finally{window._provYa=false}}))return}
  const g=i=>{const e=document.getElementById(i);return e?e.value:''};
  const nom=g('a_nom').trim();
@@ -2559,8 +2580,8 @@ function crear(k){
  if(g('a_pre')==='Fuera'&&!g('a_aprob').trim()){toast('Es una decisión de inversión: poné quién la aprobó');document.getElementById('a_aprob').focus();return}
  const enc=(k==='int'?FECHAS.filter(f=>f.fecha):[]).map((f,i)=>({id:uid('E'),fecha:f.fecha,hora:'',dur:0,
   tit:nom+(FECHAS.filter(x=>x.fecha).length>1?' · Encuentro '+(i+1):''),lugar:''}));
- const p={id:uid('X'),ej:EJ,nom,prov:g('a_prov').trim()||'A definir',
-  tipo:k==='coa'?(g('a_sub')==='Coaching'?'Coaching':'Assessment'):g('a_tipo'),
+ const p={id:uid('X'),ej:EJ,nom,prov:g('a_prov').trim()||(k==='int'?'Interna':'A definir'),
+  tipo:k==='coa'?(g('a_sub')==='Coaching'?'Coaching':'Assessment'):tipoAlta(g),
   sub:k==='coa'?g('a_sub'):'',dict:k==='int'?'Interno':'Externo',foco:g('a_foco'),linea:g('a_lin'),alc:'Equipo',
   est:'Pendiente',presup:g('a_pre'),aprob:g('a_pre')==='Fuera'?g('a_aprob').trim():'',faprob:g('a_pre')==='Fuera'?(g('a_faprob')||HOY):'',fli:g('a_fli'),fest:'',
   freal:'',ini:g('a_ini'),fin:g('a_fin'),ppto:+g('a_ppto')||0,real:+g('a_ppto')||0,carg:g('a_carg'),motivo:'',prox:false,
@@ -3234,7 +3255,14 @@ function sugerirYRellenar(id){
 
 /* ── idiomas: personas ── */
 /* ═════════ Idiomas · Alumnos ═════════ */
-const IDI_ICO={'Inglés':'🇬🇧','Portugués':'🇧🇷','Español':'🇪🇸'},IDI_COL={'Inglés':'#008EAA','Portugués':'#E09B00','Español':'#22A06B'};
+/* banderas dibujadas: los emojis de banderas no se ven en Windows (salía "GB") */
+const FLAG_SVG={ing:'<svg width="20" height="14" viewBox="0 0 60 40"><rect width="60" height="40" fill="#012169"/><path d="M0 0L60 40M60 0L0 40" stroke="#fff" stroke-width="8"/><path d="M0 0L60 40M60 0L0 40" stroke="#C8102E" stroke-width="3"/><path d="M30 0V40M0 20H60" stroke="#fff" stroke-width="13"/><path d="M30 0V40M0 20H60" stroke="#C8102E" stroke-width="7"/></svg>',
+ por:'<svg width="20" height="14" viewBox="0 0 60 40"><rect width="60" height="40" fill="#009C3B"/><path d="M30 4L56 20L30 36L4 20Z" fill="#FFDF00"/><circle cx="30" cy="20" r="8.5" fill="#002776"/><path d="M22 18.5Q30 15.5 38 21.5" stroke="#fff" stroke-width="1.6" fill="none"/></svg>',
+ esp:'<svg width="20" height="14" viewBox="0 0 60 40"><rect width="60" height="40" fill="#AA151B"/><rect y="10" width="60" height="20" fill="#F1BF00"/></svg>'};
+const idiKey=i=>{const t=String(i||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();return /ingl|engl/.test(t)?'ing':/portu/.test(t)?'por':/espa|spanish/.test(t)?'esp':''};
+const idiFlag=i=>{const k=idiKey(i);return k?`<span class="flag">${FLAG_SVG[k]}</span>`:''};
+const idiCanon=v=>{const k=idiKey(v);return k==='ing'?'Inglés':k==='por'?'Portugués':k==='esp'?'Español':String(v||'').trim()};
+const IDI_ICO={},IDI_COL={'Inglés':'#008EAA','Portugués':'#E09B00','Español':'#22A06B'};
 /* quien se factura en el período es quien cursó en el mes anterior: alta hasta fin de ese mes y sin baja antes de que empiece */
 function idiActivos(){const c=addMes(LG.mesA,-1);return DB.idi.filter(x=>x.alta<=c+'-31'&&(!x.baja||x.baja>=addMes(c,1)+'-01'))}   /* baja en un mes: se factura ese mes, no el siguiente */
 function idiPersonas(L){const o={};L.forEach(x=>(o[x.nom]=o[x.nom]||[]).push(x));return o}
@@ -3266,9 +3294,9 @@ function paneIdi(){
  return `
  <div class="idi-tiles">
   ${tile(total,'Personas que hacen idioma',sinDef?`${sinDef} sin idioma definido`:'en total','#0E3A47','')}
-  ${tile(nIdi('Inglés'),'🇬🇧 Inglés','personas · tocá para ver por profe',IDI_COL['Inglés'],"idiVer('idioma:Inglés')")}
-  ${tile(nIdi('Portugués'),'🇧🇷 Portugués','personas · tocá para ver por profe',IDI_COL['Portugués'],"idiVer('idioma:Portugués')")}
-  ${nIdi('Español')?tile(nIdi('Español'),'🇪🇸 Español','personas · tocá para ver por profe',IDI_COL['Español'],"idiVer('idioma:Español')"):''}
+  ${tile(nIdi('Inglés'),idiFlag('Inglés')+' Inglés','personas · tocá para ver por profe',IDI_COL['Inglés'],"idiVer('idioma:Inglés')")}
+  ${tile(nIdi('Portugués'),idiFlag('Portugués')+' Portugués','personas · tocá para ver por profe',IDI_COL['Portugués'],"idiVer('idioma:Portugués')")}
+  ${nIdi('Español')?tile(nIdi('Español'),idiFlag('Español')+' Español','personas · tocá para ver por profe',IDI_COL['Español'],"idiVer('idioma:Español')"):''}
  </div>
  <div class="idi-tiles">
   ${tile(alt.length,'➕ Altas','de '+mesTxt(cur),'#4FA52F',"idiAbrir('altas')")}
@@ -3277,8 +3305,8 @@ function paneIdi(){
  </div>
  <div class="idi-sec">📅 Altas y bajas de ${mesTxt(cur)} <span class="sub2" style="font-weight:400">(cursada que se factura en ${mesTxt(mes)})</span></div>
  <div class="idi-grid">
-  ${movCard('altas','➕ Altas',alt,'#4FA52F',x=>`<div class="clic" style="cursor:pointer" onclick="editIdi('${x.id}')"><span><b>${esc(x.nom)}</b><br><span class="sub2" style="font-size:11.5px">${IDI_ICO[x.idioma]||''} ${esc(x.idioma)} · ${esc(x.profe)}</span></span><span class="sub2">${fecha(x.alta)}</span></div>`)}
-  ${movCard('bajas','➖ Bajas',baj,'#E5484D',x=>`<div class="clic" style="cursor:pointer" onclick="editIdi('${x.id}')"><span><b>${esc(x.nom)}</b><br><span class="sub2" style="font-size:11.5px">${IDI_ICO[x.idioma]||''} ${esc(x.idioma)} · ${esc(x.profe)}${x.motivo?' · '+esc(x.motivo):''}</span></span><span class="sub2">${fecha(x.baja)}</span></div>`)}
+  ${movCard('altas','➕ Altas',alt,'#4FA52F',x=>`<div class="clic" style="cursor:pointer" onclick="editIdi('${x.id}')"><span><b>${esc(x.nom)}</b><br><span class="sub2" style="font-size:11.5px">${idiFlag(x.idioma)} ${esc(x.idioma)} · ${esc(x.profe)}</span></span><span class="sub2">${fecha(x.alta)}</span></div>`)}
+  ${movCard('bajas','➖ Bajas',baj,'#E5484D',x=>`<div class="clic" style="cursor:pointer" onclick="editIdi('${x.id}')"><span><b>${esc(x.nom)}</b><br><span class="sub2" style="font-size:11.5px">${idiFlag(x.idioma)} ${esc(x.idioma)} · ${esc(x.profe)}${x.motivo?' · '+esc(x.motivo):''}</span></span><span class="sub2">${fecha(x.baja)}</span></div>`)}
  </div>
  <div class="card" style="margin-top:22px"><div class="card-h"><h2>Listado completo</h2><div class="n">${L.length} cursada${L.length===1?'':'s'}</div><button class="btn" onclick="altaIdioma()">+ Alta</button></div>
   <div class="card-b" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
@@ -3289,7 +3317,7 @@ function paneIdi(){
   <div class="card-b flush"><div class="scroll" style="max-height:620px"><table>
    <thead><tr><th>Colaborador</th><th>Idioma</th><th>Profe o plataforma</th><th>Sociedad</th><th>Desde</th><th>Baja</th><th>Estado</th><th></th></tr></thead>
    <tbody>${L.length?L.map(x=>`<tr class="clic" onclick="editIdi('${x.id}')"><td><div class="nom">${esc(x.nom)}</div><div class="sub2">${esc(x.un||'')}</div></td>
-    <td>${IDI_ICO[x.idioma]||''} ${esc(x.idioma)}</td><td>${esc(x.profe)}</td><td>${esc(ab(x.soc))}</td>
+    <td>${idiFlag(x.idioma)} ${esc(x.idioma)}</td><td>${esc(x.profe)}</td><td>${esc(ab(x.soc))}</td>
     <td class="num" style="font-size:12px">${fecha(x.alta)}</td><td class="num" style="font-size:12px">${x.baja?fecha(x.baja):'—'}</td><td>${chip(x.est)}</td>
     <td class="r"><button class="btn n s" onclick="event.stopPropagation();delIdi('${x.id}')">✕</button></td></tr>`).join(''):'<tr><td colspan="8"><div class="vacio"><b>No encontré a nadie</b>Probá con otro nombre o limpiá los filtros.</div></td></tr>'}</tbody>
   </table></div></div></div>`;
@@ -3300,7 +3328,7 @@ function idiVer(k){
  if(k.startsWith('idioma:')){
   const i=k.slice(7),por={},A=act.filter(x=>x.idioma===i);A.forEach(x=>(por[x.profe]=por[x.profe]||[]).push(x));
   const pr=Object.keys(por).sort((a,b)=>por[b].length-por[a].length||a.localeCompare(b)),tot=Object.keys(idiPersonas(A)).length;
-  modal(cab((IDI_ICO[i]||'')+' '+i,tot+' persona'+(tot===1?'':'s')+' · '+pr.length+' profe'+(pr.length===1?'':'s'))+`<div class="mdl-b" style="padding:0"><div class="scroll" style="max-height:64vh">
+  modal(cab((idiFlag(i))+' '+i,tot+' persona'+(tot===1?'':'s')+' · '+pr.length+' profe'+(pr.length===1?'':'s'))+`<div class="mdl-b" style="padding:0"><div class="scroll" style="max-height:64vh">
    ${pr.map(p=>`<div style="padding:10px 18px;display:flex;justify-content:space-between;align-items:center;background:var(--celeste-xl);border-bottom:1px solid var(--linea);position:sticky;top:0">
      <b style="font-size:13px">${esc(p)}</b><span class="chip c-cur">${por[p].length} alumno${por[p].length===1?'':'s'}</span></div>
     ${por[p].slice().sort((a,b)=>a.nom.localeCompare(b.nom)).map(x=>`<div class="clic" style="padding:7px 18px;border-bottom:1px solid var(--linea);cursor:pointer;display:flex;justify-content:space-between;gap:10px;font-size:12.5px" onclick="cerrar();editIdi('${x.id}')">
@@ -3311,18 +3339,18 @@ function idiVer(k){
  modal(cab(titulo,L.length+' persona'+(L.length===1?'':'s'))+`<div class="mdl-b" style="padding:0"><div class="scroll" style="max-height:62vh">
   ${L.length?L.map(([n,l])=>`<div class="clic" style="padding:9px 18px;border-bottom:1px solid var(--linea);cursor:pointer" onclick="cerrar();editIdi('${l[0].id}')">
    <div style="display:flex;justify-content:space-between;gap:10px"><b style="font-size:13px">${esc(n)}</b><span class="sub2">${esc(ab(l[0].soc))}</span></div>
-   <div class="sub2" style="font-size:11.5px">${l.map(x=>`${IDI_ICO[x.idioma]||''} ${esc(x.idioma)} · ${esc(x.profe)}`).join(' &nbsp;+&nbsp; ')}</div></div>`).join(''):'<div class="vacio">Nadie por acá.</div>'}</div></div>`);
+   <div class="sub2" style="font-size:11.5px">${l.map(x=>`${idiFlag(x.idioma)} ${esc(x.idioma)} · ${esc(x.profe)}`).join(' &nbsp;+&nbsp; ')}</div></div>`).join(''):'<div class="vacio">Nadie por acá.</div>'}</div></div>`);
 }
 function idiAbrir(k){LG.abre=k;refresh();const e=document.getElementById('idi-mov-'+k);if(e&&e.scrollIntoView)e.scrollIntoView({behavior:'smooth',block:'center'})}
 /* desglose al tocar una tarjeta de Alumnos */
 /* cada docente con la cantidad de alumnos y quiénes son */
 function idiDocentes(act){
- const ICONO={'Inglés':'🇬🇧','Portugués':'🇧🇷','Español':'🇪🇸'},COLOR={'Inglés':'#008EAA','Portugués':'#E09B00','Español':'#22A06B'};
+ const COLOR={'Inglés':'#008EAA','Portugués':'#E09B00','Español':'#22A06B'};
  const por={};act.forEach(x=>(por[x.profe]=por[x.profe]||[]).push(x));
  const ORD=['Claudia Tubino','Andrea Coronel','Gabriela Coronel','Maite Echevarría','Nulinga','Por asignar'];
  const profes=Object.keys(por).sort((a,b)=>(ORD.indexOf(a)<0?9:ORD.indexOf(a))-(ORD.indexOf(b)<0?9:ORD.indexOf(b))||a.localeCompare(b));
  const pers=new Set(act.map(x=>x.nom)).size;
- const chipA=x=>`<span class="chip c-gris" style="margin:2px 4px 2px 0;cursor:pointer" onclick="editIdi('${x.id}')" title="${esc(x.nom)}">${ICONO[x.idioma]||'•'} ${esc(x.nom)} <span class="sub2" style="margin-left:4px">${esc(ab(x.soc))}</span></span>`;
+ const chipA=x=>`<span class="chip c-gris" style="margin:2px 4px 2px 0;cursor:pointer" onclick="editIdi('${x.id}')" title="${esc(x.nom)}">${(idiFlag(x.idioma)||'•')} ${esc(x.nom)} <span class="sub2" style="margin-left:4px">${esc(ab(x.soc))}</span></span>`;
  return `<div class="card" style="margin-bottom:16px"><div class="card-h"><h2>👩‍🏫 Docentes y sus alumnos</h2><div class="n">${pers} inscriptos · ${act.length} cursadas · ${profes.length} docentes</div></div>
   <div class="card-b" style="padding:0">${profes.length?profes.map(p=>{
    const L=por[p].slice().sort((a,b)=>a.nom.localeCompare(b.nom)),porIdi={};L.forEach(x=>porIdi[x.idioma]=(porIdi[x.idioma]||0)+1);
@@ -3330,25 +3358,25 @@ function idiDocentes(act){
    return `<div style="padding:12px 18px;border-bottom:1px solid var(--linea)">
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px"><b style="font-size:13.5px">${esc(p)}</b>
      <span class="chip ${pend?'c-pen':'c-cur'}">${L.length} alumno${L.length===1?'':'s'}</span>
-     ${Object.entries(porIdi).map(([i,n])=>`<span class="sub2" style="font-size:11.5px;color:${COLOR[i]||'var(--gris)'}">${ICONO[i]||''} ${esc(i)} ${n}</span>`).join('')}
+     ${Object.entries(porIdi).map(([i,n])=>`<span class="sub2" style="font-size:11.5px;color:${COLOR[i]||'var(--gris)'}">${idiFlag(i)} ${esc(i)} ${n}</span>`).join('')}
      ${pend?'<span class="sub2" style="color:var(--naranja);font-size:11.5px">falta asignarles docente</span>':''}</div>
     ${L.length>12?`<details><summary class="sub2" style="cursor:pointer">Ver los ${L.length} alumnos</summary><div style="margin-top:6px">${L.map(chipA).join('')}</div></details>`:`<div>${L.map(chipA).join('')}</div>`}</div>`}).join(''):'<div class="vacio">Todavía no hay alumnos cargados.</div>'}</div></div>`}
 /* altas y bajas del mes */
 function idiMovs(){
  const mes=LG.mesA,ini=mes+'-01',fin=mes+'-31';
  const alt=DB.idi.filter(x=>x.alta>=ini&&x.alta<=fin),baj=DB.idi.filter(x=>x.baja&&x.baja>=ini&&x.baja<=fin);
- const ICONO={'Inglés':'🇬🇧','Portugués':'🇧🇷','Español':'🇪🇸'};
+ 
  return `<div class="card" style="margin-bottom:16px"><div class="card-h"><h2>📅 Altas y bajas de ${mesTxt(mes)}</h2><div class="n">${alt.length} alta${alt.length===1?'':'s'} · ${baj.length} baja${baj.length===1?'':'s'}</div>
    <button class="btn g s" onclick="altaIdioma()">+ Alta</button></div>
   <div class="card-b" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px">
    <div><div style="font-size:12px;font-weight:700;color:var(--verde);margin-bottom:6px">➕ ALTAS (${alt.length})</div>
     ${alt.length?alt.map(x=>`<div class="clic" style="padding:7px 0;border-bottom:1px solid var(--linea);cursor:pointer" onclick="editIdi('${x.id}')">
      <div style="display:flex;justify-content:space-between;gap:8px"><b style="font-size:12.5px">${esc(x.nom)}</b><span class="sub2">${fecha(x.alta)}</span></div>
-     <div class="sub2" style="font-size:11.5px">${ICONO[x.idioma]||''} ${esc(x.idioma)} · ${esc(ab(x.soc))} · ${x.profe==='Por asignar'?'<span style="color:var(--naranja);font-weight:600">falta asignar docente</span>':esc(x.profe)}</div></div>`).join(''):'<div class="sub2">Sin altas en este período.</div>'}</div>
+     <div class="sub2" style="font-size:11.5px">${idiFlag(x.idioma)} ${esc(x.idioma)} · ${esc(ab(x.soc))} · ${x.profe==='Por asignar'?'<span style="color:var(--naranja);font-weight:600">falta asignar docente</span>':esc(x.profe)}</div></div>`).join(''):'<div class="sub2">Sin altas en este período.</div>'}</div>
    <div><div style="font-size:12px;font-weight:700;color:var(--rojo);margin-bottom:6px">➖ BAJAS (${baj.length})</div>
     ${baj.length?baj.map(x=>`<div class="clic" style="padding:7px 0;border-bottom:1px solid var(--linea);cursor:pointer" onclick="editIdi('${x.id}')">
      <div style="display:flex;justify-content:space-between;gap:8px"><b style="font-size:12.5px">${esc(x.nom)}</b><span class="sub2">${fecha(x.baja)}</span></div>
-     <div class="sub2" style="font-size:11.5px">${ICONO[x.idioma]||''} ${esc(x.idioma)} · ${esc(x.profe)}${x.motivo?' · '+esc(x.motivo):''}</div></div>`).join(''):'<div class="sub2">Sin bajas en este período.</div>'}</div>
+     <div class="sub2" style="font-size:11.5px">${idiFlag(x.idioma)} ${esc(x.idioma)} · ${esc(x.profe)}${x.motivo?' · '+esc(x.motivo):''}</div></div>`).join(''):'<div class="sub2">Sin bajas en este período.</div>'}</div>
   </div></div>`}
 function verSegmentoIdi(campo,valor){
  const filtrados=DB.idi.filter(x=>x[campo]===valor&&(campo==='est'||x.est==='Activa'));
@@ -3368,7 +3396,9 @@ function verSegmentoIdi(campo,valor){
 function editIdi(id){
  const x=DB.idi.find(y=>y.id===id),h=x.hist||[];
  modal(cab(esc(x.nom),esc(x.idioma)+' con '+esc(x.profe))+`<div class="mdl-b"><div class="form">
-  <div class="f"><label>Idioma</label><input id="ji_idi" value="${esc(x.idioma)}" list="dlIdi"></div>
+  <div class="f"><label>Idioma</label><select id="ji_idi">${['Inglés','Portugués'].concat(['Inglés','Portugués'].includes(idiCanon(x.idioma))?[]:[x.idioma]).map(i=>`<option ${idiCanon(x.idioma)===i||x.idioma===i?'selected':''}>${esc(i)}</option>`).join('')}</select></div>
+  <div class="f"><label>Mail principal</label><input disabled value="${esc((nomDe(x.nom)||{}).mail||'')}" placeholder="el de la nómina"></div>
+  <div class="f"><label>Mail secundario <span class="sub2" style="font-weight:400">· personal, opcional</span></label><input id="ji_mail2" type="email" value="${esc(x.mail2||'')}" placeholder="ej: nombre@gmail.com"></div>
   <div class="f"><label>Profe o plataforma</label><input id="ji_prof" value="${esc(x.profe)}" list="dlProf"></div>
   <div class="f"><label>Modalidad</label><select id="ji_mod"><option ${x.mod==='Particular'?'selected':''}>Particular</option><option ${x.mod==='Plataforma'?'selected':''}>Plataforma</option></select></div>
   <div class="f"><label>Nivel</label><input id="ji_niv" value="${esc(x.nivel||'')}" placeholder="Inicial / Intermedio / Avanzado"></div>
@@ -3392,7 +3422,7 @@ function editIdi(id){
 }
 function saveIdi(id){
  const x=DB.idi.find(y=>y.id===id),g=k=>document.getElementById(k).value;
- Object.assign(x,{idioma:g('ji_idi'),profe:g('ji_prof'),mod:g('ji_mod'),nivel:g('ji_niv'),soc:g('ji_soc'),
+ Object.assign(x,{idioma:idiCanon(g('ji_idi')),mail2:g('ji_mail2').trim(),profe:g('ji_prof'),mod:g('ji_mod'),nivel:g('ji_niv'),soc:g('ji_soc'),
   alta:g('ji_alta'),baja:g('ji_baja'),notas:g('ji_notas'),est:g('ji_baja')?'Baja':'Activa'});
  guardar();cerrar();LG.sub=0;refresh();toast('Guardado')}
 function delIdi(id){const x=DB.idi.find(y=>y.id===id);
@@ -3403,7 +3433,7 @@ function altaIdioma(){
   <div class="f full"><label>Colaborador</label><input id="gi_nom" list="dlNomI" placeholder="Nombre o legajo"
     oninput="const r=buscarPersona(this.value);document.getElementById('gi_hint').innerHTML=r?'<b>'+r.nombre+'</b> · '+ab(r.sociedad)+' · '+(r.unidad||'')+' — la factura del profe va a esa sociedad':'Sociedad y área se toman de la nómina.'">
    <div class="hint" id="gi_hint">Sociedad y área se toman de la nómina.</div></div>
-  <div class="f"><label>Idioma</label><input id="gi_idi" value="Inglés" list="dlIdi2"></div>
+  <div class="f"><label>Idioma</label><select id="gi_idi"><option>Inglés</option><option>Portugués</option></select></div>
   <div class="f"><label>Profe o plataforma</label><input id="gi_prof" list="dlProf2" placeholder="Claudia Tubino / Nulinga"
     oninput="document.getElementById('gi_mod').value=this.value.toLowerCase().includes('nulinga')?'Plataforma':'Particular'"></div>
   <div class="f"><label>Modalidad</label><select id="gi_mod"><option>Particular</option><option>Plataforma</option></select>
@@ -3662,7 +3692,8 @@ function nlCalc(src,mesOpt){
   const tk=t=>new Set(nk(t).split(' ').filter(Boolean)),cerca=(a,b)=>{const A=tk(a),B=tk(b);if(Math.min(A.size,B.size)<2)return false;return [...A].every(t=>B.has(t))||[...B].every(t=>A.has(t))};   /* mismo nombre aunque uno tenga un segundo nombre de más */
   const mios=nul.filter(x=>nom?(x.lg&&x.lg===nom.legajo)||nk(x.nom)===nk(nom.nombre)||cerca(x.nom,nom.nombre):nk(x.nom)===nk(last+' '+first)||nk(x.nom)===nk(first+' '+last)||cerca(x.nom,last+' '+first));
   const al=mios.find(x=>x.idioma===idioma&&!usados.has(x.id))||mios.find(x=>!usados.has(x.id))||null;if(al)usados.add(al.id);
-  return{r,first,last,nombre:nom?nom.nombre:(last+' '+first).trim(),nom,al,idioma,nivel:String(r.level||''),plan:String(r.subscription_plan||''),prog:String(r.program||''),copay,grupo:String(r.group_name||''),fa,esp,mail:em[0]}});
+  const mailSec=em.filter(Boolean).find(e=>!mailCorp(e)&&e!==String((nom&&nom.mail)||'').toLowerCase())||'';   /* mail personal: queda como secundario */
+  return{r,first,last,nombre:nom?nom.nombre:(last+' '+first).trim(),nom,al,idioma,nivel:String(r.level||''),plan:String(r.subscription_plan||''),prog:String(r.program||''),copay,grupo:String(r.group_name||''),fa,esp,mail:em[0],mailSec,mails:em.filter(Boolean)}});
  const nuevos=filas.filter(f=>!f.al),sinNom=filas.filter(f=>!f.nom),impo=filas.filter(f=>f.nom&&f.fa&&f.esp&&f.esp!==f.fa),
   facBaja=filas.filter(f=>f.al&&f.al.baja&&f.al.baja<addMes(c,1)+'-01');
  const esperados=nul.filter(x=>idiFacturable(x,c)),ausentes=esperados.filter(x=>!usados.has(x.id)),recientes=ausentes.filter(x=>x.alta>=c+'-01'),sinLista=ausentes.filter(x=>x.alta<c+'-01');   /* alta dentro del mes cursado y todavía no facturada: no es una baja */
@@ -3691,7 +3722,10 @@ function nlVolver(){const m=NF.mes,pr=NF.profe;cerrar();nuevaFactIdi(pr);NF.mes=
 function nlAplicarN(N,auto){const n={a:0,b:0,r:0},prof=N.src.nombrePlat||((typeof NF!=='undefined'&&NF&&NF.profe)||'Nulinga');
  N.nuevos.forEach((f,i)=>{if(!auto&&N.desm['a'+i])return;const nom=f.nom,x={id:uid('ID'),lg:nom?nom.legajo:'',nom:f.nombre,idioma:f.idioma,profe:prof,mod:'Plataforma',soc:nom?nom.sociedad:f.fa,vn:nom?nom.vn:'',un:nom?nom.unidad:'',lider:nom?(nom.liderC||nom.lider):'',alta:N.fAlta,baja:'',est:'Activa',nivel:f.nivel,notas:[f.plan,f.prog].filter(Boolean).join(' · '),motivo:'',hist:[]};DB.idi.push(x);f.al=x;n.a++});
  N.sinLista.forEach((x,i)=>{if(!auto&&N.desm['b'+i])return;x.baja=N.fBaja;x.est='Baja';x.motivo='No figura en el listado de Nulinga de '+mesTxt(N.c);n.b++});
- N.facBaja.forEach((f,i)=>{if(auto||N.desm['r'+i]===false){f.al.baja='';f.al.est='Activa';f.al.motivo='';n.r++}});return n}
+ N.facBaja.forEach((f,i)=>{if(auto||N.desm['r'+i]===false){f.al.baja='';f.al.est='Activa';f.al.motivo='';n.r++}});
+ /* mails personales: el de la nómina es el principal y el personal queda como secundario (también para la otra cursada de la misma persona) */
+ n.m=0;N.filas.forEach(f=>{if(!f.al||!f.mailSec)return;DB.idi.filter(x=>x===f.al||(f.nom&&((x.lg&&x.lg===f.nom.legajo)||x.nom===f.nom.nombre))).forEach(x=>{if(x.mail2!==f.mailSec&&(!x.mail2||x===f.al)){x.mail2=f.mailSec;n.m++}})});
+ return n}
 function nlAplicar(){
  const N=NL,n=nlAplicarN(N,false);
  NF.listado={nombre:N.src.nombre,c:N.c,filas:N.filas.filter(f=>f.al&&!f.excluir),totFa:N.totFa};
@@ -4647,7 +4681,9 @@ V.fact=()=>{
  const T=todasFacturas();
  const okF=f=>(!FF.soc||f.soc===FF.soc)&&(!FF.tipo||f.tipo===FF.tipo)&&(!FF.mes||(FF.mes==='sin'?!f.mesf:f.mesf===FF.mes))
   &&(!FF.q||(f.act+' '+f.prov+' '+f.nro).toLowerCase().includes(FF.q.toLowerCase()));
- const Lb=T.filter(okF),L=Lb.filter(f=>!FF.est||f.est===FF.est);
+ const Lb=T.filter(okF),L=Lb.filter(f=>!FF.est||f.est===FF.est).sort((a,b)=>{   /* la factura con fecha más reciente primero; las que no tienen fecha, al final */
+  const fa=a.fcarga||'',fb=b.fcarga||'';if(fa!==fb){if(!fa)return 1;if(!fb)return -1;return fb.localeCompare(fa)}
+  return (b.mpago||'').localeCompare(a.mpago||'')||(b.monto||0)-(a.monto||0)});
  const n=e=>Lb.filter(f=>f.est===e).length, m=e=>Lb.filter(f=>f.est===e).reduce((a,f)=>a+f.monto,0);
  const mesesF=[...new Set(T.map(f=>f.mesf).filter(Boolean))].sort().reverse();
  return `
@@ -4674,8 +4710,8 @@ V.fact=()=>{
   <div class="card-b flush"><div class="scroll"><table class="fit">
   <thead><tr><th>Concepto</th><th>Proveedor</th><th>Sociedad · cuenta</th><th class="r">Monto</th><th>N° de factura</th><th>Fecha de factura</th><th>Mes de pago</th><th>Estado</th></tr></thead>
   <tbody>${L.length?L.map(f=>`<tr>
-   <td><div class="nom">${esc(f.act)}</div>${f.pedido?`<div class="sub2">Pedido: ${esc(f.pedido)}</div>`:''}
-    <div class="sub2" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:3px"><span class="chip c-gris">${f.tipo}</span>${f.ref?`<a href="#" onclick="ir('act','${f.ref}');return false">ver ficha →</a>`:''}</div></td>
+   <td><div class="nom">${esc(f.act)}</div>${f.pedido?`<div class="sub2">Pedido: ${esc(f.pedido)}</div>`:''}${(f.asoc&&f.asoc.length)?`<div class="sub2" style="line-height:1.45">Asociada a: ${f.asoc.slice(0,3).map(esc).join(', ')}${f.asoc.length>3?' +'+(f.asoc.length-3)+' más':''}</div>`:''}${(!f.ref&&!f.beca&&!f.idi&&!f.gasto&&f.notas)?`<div class="sub2" style="line-height:1.45;font-style:italic">${esc(String(f.notas).length>90?String(f.notas).slice(0,89)+'…':f.notas)}</div>`:''}
+    <div class="sub2" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:3px"><span class="chip c-gris">${f.tipo}</span>${f.ref?`<a href="#" onclick="ir('act','${f.ref}');return false">ver ficha →</a>`:''}${(!f.ref&&!f.beca&&!f.idi&&!f.gasto)?`<a href="#" onclick="factSuelta('${f.id}');return false">ver detalle →</a>`:''}</div></td>
    <td class="sub2">${esc(f.prov||'—')}</td>
    <td><div>${esc(ab(f.soc))}</div><div class="sub2 num" style="font-size:11px">${esc(f.cta||'—')}</div>${cecoDe(f.soc).length?(C=>C.length?`<div class="sub2" style="font-size:11px">CC ${C.map(c=>esc(c.cod+(c.unidad?' · '+c.unidad:''))).join(' / ')}</div>`:`<div class="sub2" style="font-size:11px;color:var(--naranja)">CC sin elegir${f.ref?` · <a href="#" onclick="ir('act','${f.ref}');return false">elegir</a>`:''}</div>`)(cecoFact(f)):''}</td>
    <td class="r num" style="font-weight:600">${f.tipo==='Capacitación'?`<input class="fi num money" type="text" inputmode="numeric" style="width:112px;text-align:right" value="${f.monto}" title="Cargá o corregí el monto de la factura" onchange="setFact('${f.id}','monto',this.value)">`:plata(f.monto)}</td>
@@ -4724,27 +4760,49 @@ function delFact(id){const f=DB.fact.find(x=>x.id===id),aid=f.aid;
  {const p=acto(aid);if(p&&p.facturar)p.facturar.cuotas.forEach(c=>{if(c.gen){c.gen.ids=c.gen.ids.filter(i=>DB.fact.some(x=>x.id===i));if(!c.gen.ids.length)c.gen=null}})}
  syncReal(aid);guardar();
  if(RUTA==='act')volverFicha(aid,3);else refresh();toast('Factura eliminada')}
-function factSuelta(){
- modal(cab('Factura suelta','Para gastos que no salen de una capacitación del plan')+`<div class="mdl-b"><div class="form">
-  <div class="f full"><label>Concepto</label><input id="q_act" placeholder="Snacks capacitaciones / Material impreso"></div>
-  <div class="f"><label>Proveedor</label><input id="q_prov" list="dlProvQ"></div>
-  <div class="f"><label>Sociedad</label><select id="q_soc">${SOCS.map(s=>`<option>${esc(s)}</option>`).join('')}</select></div>
-  <div class="f"><label>Monto</label><input class="money" type="text" inputmode="numeric" id="q_monto" value="0"></div>
+function factSuelta(id){
+ const f=id?DB.fact.find(x=>x.id===id):null,v=k=>f?esc(f[k]==null?'':f[k]):'';
+ modal(cab('Factura suelta',f?'Ver y editar · '+esc(f.act):'Para gastos que no salen de una capacitación del plan')+`<div class="mdl-b"><div class="form">
+  <div class="f full"><label>Concepto</label><input id="q_act" placeholder="Snacks capacitaciones / Material impreso" value="${v('act')}"></div>
+  <div class="f"><label>Proveedor</label><input id="q_prov" list="dlProvQ" value="${v('prov')}"></div>
+  <div class="f"><label>Sociedad</label><select id="q_soc">${SOCS.map(s=>`<option ${f&&f.soc===s?'selected':''}>${esc(s)}</option>`).join('')}</select></div>
+  <div class="f"><label>Monto</label><input class="money" type="text" inputmode="numeric" id="q_monto" value="${f?f.monto:0}"></div>
   <div class="f full"><label>Cuenta a la que imputa</label><select id="q_cta">
-   ${partidas().map(c=>`<option value="${c.id}">${esc(c.ab)} · ${esc(c.cta)} · ${esc(c.desc)}</option>`).join('')}</select></div>
-  <div class="f"><label>N° de factura</label><input id="q_nro"></div>
-  <div class="f"><label>Fecha de factura</label><input type="date" id="q_fc"></div>
- </div><div class="acts"><button class="btn" onclick="crearFactSuelta()">Crear</button>
-  <button class="btn n" onclick="cerrar()">Cancelar</button></div></div>
- <datalist id="dlProvQ">${DB.prov.map(p=>`<option value="${esc(p.nom)}">`).join('')}</datalist>`);
+   ${partidas().map(c=>`<option value="${c.id}" ${f&&f.cid===c.id?'selected':''}>${esc(c.ab)} · ${esc(c.cta)} · ${esc(c.desc)}</option>`).join('')}</select></div>
+  <div class="f"><label>N° de factura</label><input id="q_nro" value="${v('nro')}"></div>
+  <div class="f"><label>Fecha de factura</label><input type="date" id="q_fc" value="${v('fcarga')}"></div>
+  <div class="f full"><label>Personas asociadas <span class="sub2" style="font-weight:400">· opcional, de la nómina (una o más)</span></label>
+   <div style="display:flex;gap:8px"><input class="fi" id="q_per" list="dlQP" placeholder="Escribí el nombre o apellido y tocá Agregar" style="flex:1;min-width:0" onkeydown="if(event.key==='Enter'){event.preventDefault();qPerAdd('q_per','q_pers')}"><button type="button" class="btn n" onclick="qPerAdd('q_per','q_pers')">Agregar</button></div>
+   <div id="q_pers" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"></div></div>
+  <div class="f full"><label>Notas <span class="sub2" style="font-weight:400">· opcional</span></label><textarea id="q_notas" style="min-height:64px" placeholder="Lo que haga falta recordar de este gasto">${v('notas')}</textarea></div>
+ </div><div class="acts"><button class="btn" onclick="crearFactSuelta('${id||''}')">${f?'Guardar cambios':'Crear'}</button>
+  ${f?`<button class="btn d" onclick="factSueltaDel('${id}')">Eliminar</button>`:''}<button class="btn n" onclick="cerrar()">Cancelar</button></div></div>
+ <datalist id="dlProvQ">${DB.prov.map(p=>`<option value="${esc(p.nom)}">`).join('')}</datalist>
+ <datalist id="dlQP">${DB.nom.slice().sort((a,b)=>a.nombre.localeCompare(b.nombre,'es')).map(p=>`<option value="${esc(p.nombre)}">${esc(p.posicion||'')}</option>`).join('')}</datalist>`);
+ QP=f&&f.asoc?f.asoc.slice():[];qPerPaint('q_pers');
 }
-function crearFactSuelta(){
- const g=k=>document.getElementById(k).value, c=DB.part.find(x=>x.id===g('q_cta')&&x.ej===EJ);
+/* personas de la nómina asociadas a un comprobante (para saber de quién es el gasto) */
+let QP=[];
+function qPerPaint(box){const c=document.getElementById(box);if(!c)return;c.innerHTML=QP.map((n,i)=>`<span class="cb on" style="cursor:default">${esc(n)} <button type="button" title="Quitar" style="border:none;background:none;cursor:pointer;font-size:13px;color:inherit" onclick="QP.splice(${i},1);qPerPaint('${box}')">✕</button></span>`).join('')||'<span class="sub2">Todavía no asociaste a nadie</span>'}
+function qPerAdd(inp,box){const i=document.getElementById(inp),v=(i.value||'').trim();if(!v)return true;
+ const r=nomDe(v)||buscarPersona(v)||resolverPers(v);if(!r){toast('No encontré a «'+v+'» en la nómina. Probá con nombre y apellido');return false}
+ if(QP.includes(r.nombre)){toast('Ya está asociada');i.value='';return true}QP.push(r.nombre);i.value='';qPerPaint(box);i.focus();return true}
+function factPersonas(id){const f=DB.fact.find(x=>x.id===id);if(!f)return;QP=(f.asoc||[]).slice();
+ modal(cab('Personas asociadas',esc(f.act))+`<div class="mdl-b"><div class="sub2" style="margin-bottom:10px">Personas de la nómina a las que corresponde este comprobante.</div>
+  <div style="display:flex;gap:8px"><input class="fi" id="fp_per" list="dlQP" placeholder="Escribí el nombre o apellido" style="flex:1;min-width:0" onkeydown="if(event.key==='Enter'){event.preventDefault();qPerAdd('fp_per','fp_pers')}"><button type="button" class="btn n" onclick="qPerAdd('fp_per','fp_pers')">Agregar</button></div>
+  <div id="fp_pers" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px"></div>
+  <div class="acts"><button class="btn" onclick="factPersonasGuardar('${id}')">Guardar</button><button class="btn n" onclick="cerrar()">Cancelar</button></div></div>
+  <datalist id="dlQP">${DB.nom.slice().sort((a,b)=>a.nombre.localeCompare(b.nombre,'es')).map(p=>`<option value="${esc(p.nombre)}">${esc(p.posicion||'')}</option>`).join('')}</datalist>`,'sm');qPerPaint('fp_pers')}
+function factPersonasGuardar(id){const f=DB.fact.find(x=>x.id===id);if(!f)return;if(QP.length)f.asoc=QP.slice();else delete f.asoc;guardar();cerrar();refresh();toast('Personas asociadas guardadas')}
+function crearFactSuelta(id){
+ if(!qPerAdd('q_per','q_pers'))return;   /* si quedó un nombre escrito sin tocar Agregar, se suma solo (o avisa si no lo encuentra) */
+ const g=k=>document.getElementById(k).value, c=DB.part.find(x=>x.id===g('q_cta')&&x.ej===EJ)||DB.part.find(x=>x.id===g('q_cta'));
  if(!g('q_act').trim()){toast('Poné el concepto');return}
- DB.fact.push({id:uid('F'),ej:EJ,aid:'',act:g('q_act'),prov:g('q_prov'),soc:g('q_soc'),cid:c.id,cta:c.cta,
-  desc:c.desc,pers:0,monto:+g('q_monto')||0,nro:g('q_nro'),fcarga:g('q_fc'),fpago:'',notas:'',
-  });
+ const datos={act:g('q_act'),prov:g('q_prov'),soc:g('q_soc'),cid:c.id,cta:c.cta,desc:c.desc,monto:+String(g('q_monto')).replace(/[^\d.-]/g,'')||0,nro:g('q_nro'),fcarga:g('q_fc'),notas:g('q_notas').trim()};
+ if(id){const f=DB.fact.find(x=>x.id===id);if(!f)return;Object.assign(f,datos);if(QP.length)f.asoc=QP.slice();else delete f.asoc;guardar();cerrar();refresh();toast('Factura guardada');return}
+ DB.fact.push({id:uid('F'),ej:EJ,aid:'',pers:0,fpago:'',...datos,...(QP.length?{asoc:QP.slice()}:{})});
  guardar();cerrar();refresh();toast('Factura creada')}
+function factSueltaDel(id){const f=DB.fact.find(x=>x.id===id);if(!f)return;confirmar(`Vas a eliminar la factura suelta <b>${esc(f.act)}</b>.`,`()=>{DB.fact=DB.fact.filter(x=>x.id!=='${id}');guardar();refresh();toast('Factura eliminada')}`)}
 </script>
 <script>
 /* ═════════════ VERTICALES Y EQUIPOS ═════════════ */
@@ -5857,7 +5915,7 @@ function migrarProvExcel(){
 /* ═════ ACCESOS: portales de proveedores y contraseñas del equipo (tabla accesos en Supabase) ═════ */
 const accOk=()=>true;   /* siempre se pueden cargar accesos: con o sin la tabla nueva en la base */
 const accTablaFalta=()=>typeof SB!=='undefined'&&SB&&SB.cli&&SB.accOk===false;
-const accAviso=()=>accTablaFalta()?`<div class="aviso" style="margin-bottom:14px"><b>Los accesos se guardan en la base general.</b> Cuando corras una vez el script <b>01_esquema_supabase.sql</b> en Supabase, pasan solos a su tabla propia (recomendado: permite darle permisos más estrictos). Mientras tanto se puede cargar y usar todo normal.</div>`:'';
+const accAviso=()=>'';
 const accDe=nom=>(DB.acc||[]).filter(a=>a.prov&&provPn(a.prov)===provPn(nom));
 function accCuentaFila(c,conEt){c=c||{};return `<div class="p_cu" style="display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap">${conEt?`<input class="fi p_et" placeholder="Etiqueta (opcional)" value="${esc(c.et||'')}" style="width:130px">`:''}<input class="fi p_u" placeholder="Usuario" value="${esc(c.u||'')}" style="flex:1;min-width:140px"><div style="display:flex;gap:4px;flex:1;min-width:150px"><input class="fi p_c" type="password" autocomplete="new-password" placeholder="Contraseña" value="${esc(c.c||'')}" style="flex:1;min-width:0"><button type="button" class="ib" title="Mostrar u ocultar" onclick="const i=this.previousElementSibling;i.type=i.type==='password'?'text':'password'">${ico('eye',15)}</button></div><button type="button" class="ib" title="Quitar" onclick="this.closest('.p_cu').remove()">✕</button></div>`}
 function portalBlock(a){a=a||{};const cu=(a.cuentas&&a.cuentas.length)?a.cuentas:[{}];
@@ -6483,7 +6541,7 @@ async function exPlanVisual(){
     r=xlTab(h,r,['Persona','Legajo','Sociedad','Área','Vertical','Líder','Estado'],rows,2,{al:['left','center'],vacio:'Todavía no hay personas anotadas',paint:(k,i,v)=>i===6&&String(v).startsWith('Baja')?[null,'B42318']:null})}
    r+=2});
   /* listado: una fila por capacitación */
-  const LST=info.map(o=>{const p=o.p;return{'Ejercicio':p.ej,'Capacitación':p.nom,'Línea':p.linea||'—','Tipo':o.tipo,'Foco':p.foco||'—','Proveedor':p.prov&&p.prov!=='A definir'?p.prov:'Por definir','Dictado':p.dict||'—','Alcance':p.alc||'—','Cargó':p.carg||'','Estado':o.g,'Inicia':o.fx.ini||'','Termina':o.fx.fin&&o.fx.ini?o.fx.fin:'','Monto real':+p.real>0?+p.real:'','Monto estimado':+p.ppto>0?+p.ppto:'','Personas':o.A.length,'Bajas':o.bajas,'Asistencia (%)':tieneAsis(p)?asisProm(p):'','Presupuesto':p.presup==='Fuera'?'Fuera (DI)':'Dentro','Link de la encuesta':p.encuesta||'','Notas':[p.notas,p.accion].filter(Boolean).join(' · ')}});
+  const LST=info.map(o=>{const p=o.p;return{'Ejercicio':p.ej,'Capacitación':p.nom,'Línea':p.linea||'—','Tipo':o.tipo,'Foco':p.foco||'—','Proveedor':p.prov&&p.prov!=='A definir'?p.prov:'Por definir','Dictado':p.dict||'—','Alcance':p.alc||'—','Cargó':p.carg||'','Centro de costo':cecoAct(p),'Estado':o.g,'Inicia':o.fx.ini||'','Termina':o.fx.fin&&o.fx.ini?o.fx.fin:'','Monto real':+p.real>0?+p.real:'','Monto estimado':+p.ppto>0?+p.ppto:'','Personas':o.A.length,'Bajas':o.bajas,'Asistencia (%)':tieneAsis(p)?asisProm(p):'','Presupuesto':p.presup==='Fuera'?'Fuera (DI)':'Dentro','Link de la encuesta':p.encuesta||'','Notas':[p.notas,p.accion].filter(Boolean).join(' · ')}});
   xlPlana(wb,'Listado',LST,{dinero:['Monto real','Monto estimado']});
   if(EXV.part){const PER=[];info.forEach(o=>o.p.parts.slice().sort((a,b)=>a.nom.localeCompare(b.nom,'es')).forEach(x=>{const baja=x.est==='Baja',as=tieneAsis(o.p)&&!baja?asisPers(o.p,x):null;
     PER.push({'Ejercicio':o.p.ej,'Capacitación':o.p.nom,'Línea':o.p.linea||'—','Estado de la capacitación':o.g,'Persona':x.nom,'Legajo':x.lg||'','Sociedad':ab(x.soc||'')||'—','Área':x.un||'—','Vertical':x.vn||'—','Líder':x.lider||'—','Estado de la persona':baja?'Baja':'Inscripto','Asistió a':as?as.n+' de '+as.tot:'','Motivo de la baja':baja?(x.motivo||''):''})}));
@@ -6548,7 +6606,7 @@ function exFactDet(){
  const out=[];exEjs().forEach(ej=>exConEj(ej,()=>todasFacturas()).forEach(f=>{
   const pl=f.idi?null:DB.plan.find(x=>x.id===(f.aid||f.pid||f.ref)),pa=exConEj(ej,()=>DB.part.find(x=>x.ej===ej&&x.id===f.cid))||{},pv=DB.prov.find(x=>x.nom===f.prov)||{};
   out.push({'Ejercicio':ej,'Mes de pago':f.mpago||'Sin mes','Fecha de factura':f.fcarga||'','N° de factura':f.nro||'Sin N°','Estado':f.est,'Tipo':f.tipo,'Línea':f.idi?'Idiomas':f.beca?'Becas':((pl&&pl.linea)||'—'),
-   'Concepto':f.act,'Proveedor':f.prov||'—','CUIT del proveedor':pv.cuit||'','Sociedad':f.soc||'—','Cuenta':f.cta||'a definir','Descripción de la cuenta':pa.desc||'','Cuenta completa':(ab(f.soc||'')||'—')+' · '+(f.cta||'a definir')+(pa.desc?' · '+pa.desc:''),'Monto':exNum(f.monto),'Fecha de pago':f.fpago||'','Pedido de pago (becas)':f.beca?(f.pedido||''):'','Centro de costo':cecoTxt(f)})}));
+   'Concepto':f.act,'Proveedor':f.prov||'—','CUIT del proveedor':pv.cuit||'','Sociedad':f.soc||'—','Cuenta':f.cta||'a definir','Descripción de la cuenta':pa.desc||'','Cuenta completa':(ab(f.soc||'')||'—')+' · '+(f.cta||'a definir')+(pa.desc?' · '+pa.desc:''),'Monto':exNum(f.monto),'Fecha de pago':f.fpago||'','Pedido de pago (becas)':f.beca?(f.pedido||''):'','Centro de costo':cecoTxt(f),'Personas asociadas':(f.asoc||[]).join(' · '),'Notas':(!f.ref&&!f.beca&&!f.idi&&!f.gasto)?(f.notas||''):''})}));
  out.sort((a,b)=>a['Mes de pago'].localeCompare(b['Mes de pago'])||a['Cuenta completa'].localeCompare(b['Cuenta completa'])||a['Concepto'].localeCompare(b['Concepto']));
  return out.filter(r=>EXF.tipo[r['Tipo']]!==false&&EXF.est[r['Estado']]!==false&&(!Object.values(EXF.soc).some(Boolean)||EXF.soc[r['Sociedad']]))}
 function exPanelFact(){const all=(()=>{const s=EXF.soc;EXF.soc={};const r=exFactDet();EXF.soc=s;return r})(),D=exFactDet(),tot=D.reduce((a,r)=>a+r['Monto'],0),socs=[...new Set(all.map(r=>r['Sociedad']))].sort();
